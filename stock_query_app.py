@@ -50,22 +50,17 @@ def load_data():
 
 stock_df = load_data()
 
-# --- 初始化 session_state ---
-for key in ["prefix", "suffix", "name_keyword"]:
-    if key not in st.session_state:
-        st.session_state[key] = ""
-
-# --- 查询条件区域 ---
+# --- 查询输入区域 ---
 with st.container():
     st.markdown("### 🔎 查询条件")
 
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        st.session_state.prefix = st.text_input("股票代码前两位", value=st.session_state.prefix, key="input_prefix", max_chars=2)
+        st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
     with col2:
-        st.session_state.suffix = st.text_input("股票代码后两位", value=st.session_state.suffix, key="input_suffix", max_chars=2)
+        st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
     with col3:
-        st.session_state.name_keyword = st.text_input("股票名称关键词", value=st.session_state.name_keyword, key="input_name")
+        st.text_input("股票名称关键词", key="input_name")
 
     col4, col5 = st.columns([1, 1])
     with col4:
@@ -73,20 +68,21 @@ with st.container():
     with col5:
         clear_btn = st.button("🧹 清除查询条件")
 
-# --- 清除按钮逻辑 ---
+# --- 清除按钮逻辑（安全兼容） ---
 if clear_btn:
-    st.session_state.prefix = ""
-    st.session_state.suffix = ""
-    st.session_state.name_keyword = ""
-    st.experimental_rerun()
+    st.session_state.input_prefix = ""
+    st.session_state.input_suffix = ""
+    st.session_state.input_name = ""
+
+# --- 读取查询条件 ---
+prefix = st.session_state.input_prefix
+suffix = st.session_state.input_suffix
+name_keyword = st.session_state.input_name
 
 # --- 查询逻辑 ---
 if search_btn:
-    prefix = st.session_state.prefix
-    suffix = st.session_state.suffix
-    name_keyword = st.session_state.name_keyword
-
     filtered_df = stock_df.copy()
+
     if prefix:
         filtered_df = filtered_df[filtered_df["code"].str.startswith(prefix)]
     if suffix:
@@ -109,4 +105,4 @@ if search_btn:
         )
 
 # --- 页脚 ---
-st.markdown('<div class="footer">© 2025 A股查询工具 by 你自己 | Powered by Streamlit</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">© 2025 A股查询工具 by HaHa | Powered by Streamlit</div>', unsafe_allow_html=True)
