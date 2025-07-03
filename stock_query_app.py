@@ -32,7 +32,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">📈股票代码查询</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票代码查询工具</div>', unsafe_allow_html=True)
 
 # --- 加载数据 ---
 EXCEL_FILE = "A股股票列表.xlsx"
@@ -55,35 +55,29 @@ for key in ["input_prefix", "input_suffix", "input_name"]:
     if key not in st.session_state:
         st.session_state[key] = ""
 
+# 清除输入的回调函数
+def clear_inputs():
+    st.session_state.input_prefix = ""
+    st.session_state.input_suffix = ""
+    st.session_state.input_name = ""
+
 # --- 查询输入区域 ---
 with st.container():
     st.markdown("### 🔎 查询条件")
 
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        st.text_input("股票代码前两位", max_chars=2, key="input_prefix", value=st.session_state["input_prefix"])
+        st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
     with col2:
-        st.text_input("股票代码后两位", max_chars=2, key="input_suffix", value=st.session_state["input_suffix"])
+        st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
     with col3:
-        st.text_input("股票名称关键词", key="input_name", value=st.session_state["input_name"])
+        st.text_input("股票名称关键词", key="input_name")
 
     col4, col5 = st.columns([1, 1])
     with col4:
         search_btn = st.button("🚀 开始查询")
     with col5:
-        clear_btn = st.button("🧹 清除查询条件")
-
-# --- 清除按钮逻辑 ---
-if clear_btn:
-    # 避免直接赋值，先用 dict 形式更新
-    updates = {}
-    for k in ["input_prefix", "input_suffix", "input_name"]:
-        updates[k] = ""
-    st.session_state.update(updates)
-
-    st.experimental_set_query_params()
-    st.experimental_rerun()
-
+        clear_btn = st.button("🧹 清除查询条件", on_click=clear_inputs)
 
 # --- 获取输入值 ---
 prefix = st.session_state["input_prefix"]
