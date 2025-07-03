@@ -1,79 +1,70 @@
-import tkinter as tk
-from tkinter import messagebox, scrolledtext, filedialog
+import streamlit as st
 import pandas as pd
 import akshare as ak
 import os
 
-def query_stock():
-    prefix = entry_prefix.get().strip()
-    suffix = entry_suffix.get().strip()
+st.set_page_config(page_title="A股股票代码查询", layout="wide")
+st.title("📈 A股股票代码查询工具（增强版）")
 
-    if not (prefix.isdigit() and suffix.isdigit()):
-        messagebox.showwarning("输入错误", "请输入数字形式的前两位和后两位")
-        return
+# --- 数据源选择 ---
+st.sidebar.header("数据源设置")
+data_source = st.sidebar.radio("选择数据来源：", ["线上查询（akshare）", "本地文件上传"])
 
-    try:
-        # 判断数据来源
-        if source_var.get() == "online":
-            stock_df = ak.stock_info_a_code_name()
-        else:
-            if not os.path.exists("A股股票列表.xlsx"):
-                messagebox.showerror("文件不存在", "找不到文件 A股股票列表.xlsx，请确认已放在当前目录下。")
-                return
-            stock_df = pd.read_excel("A股股票列表.xlsx", dtype={"code": str})
+# 如果本地上传，提供文件上传控件
+uploaded_file = None
+if "本地" in data_source:
+    uploaded_file = st.sidebar.file_uploader("上传 A股股票列表.xlsx", type=["xlsx"])
 
-
-        stock_df['code'] = stock_df['code'].astype(str)
-        print(stock_df['code'])
-
-        matched_df = stock_df[
-            stock_df['code'].str.startswith(prefix) &
-            stock_df['code'].str.endswith(suffix)
-        ]
-
-        output_text.delete(1.0, tk.END)
-        if matched_df.empty:
-            output_text.insert(tk.END, f"没有找到以 {prefix} 开头、{suffix} 结尾的股票代码。")
-        else:
-            for _, row in matched_df.iterrows():
-                output_text.insert(tk.END, f"{row['code']} - {row['name']}\n")
-
-    except Exception as e:
-        messagebox.showerror("错误", f"查询出错：{e}")
-
-# 创建主窗口
-window = tk.Tk()
-window.title("A股股票代码查询工具")
-window.geometry("550x450")
-
-# 数据来源选择
-source_var = tk.StringVar(value="online")
-frame_source = tk.Frame(window)
-frame_source.pack(pady=10)
-
-tk.Label(frame_source, text="请选择数据来源：").pack(side=tk.LEFT)
-tk.Radiobutton(frame_source, text="线上查询（akshare）", variable=source_var, value="online").pack(side=tk.LEFT, padx=5)
-tk.Radiobutton(frame_source, text="本地文件（A股股票列表.xlsx）", variable=source_var, value="local").pack(side=tk.LEFT, padx=5)
-
-# 输入部分
-frame_input = tk.Frame(window)
-frame_input.pack(pady=10)
-
-tk.Label(frame_input, text="股票代码前两位:").grid(row=0, column=0, padx=5)
-entry_prefix = tk.Entry(frame_input, width=10)
-entry_prefix.grid(row=0, column=1, padx=5)
-
-tk.Label(frame_input, text="股票代码后两位:").grid(row=0, column=2, padx=5)
-entry_suffix = tk.Entry(frame_input, width=10)
-entry_suffix.grid(row=0, column=3, padx=5)
+# --- 输入查询条件 ---
+st.sidebar.header("筛选条件")
+prefix = st.sidebar.text_input("股票代码前两位（可留空）", max_chars=2)
+suffix = st.sidebar.text_input("股票代码后两位（可留空）", max_chars=2)
+name_keyword = st.sidebar.text_input("股票名称关键词（模糊搜索）")
 
 # 查询按钮
-btn_query = tk.Button(window, text="查询", command=query_stock)
-btn_query.pack(pady=10)
+query_triggered = st.sidebar.button("🔍 查询")
 
-# 输出框
-output_text = scrolledtext.ScrolledText(window, width=65, height=15)
-output_text.pack(pady=10)
+# --- 查询逻辑 ---
+if query_triggered:
+    try:
+        # 数据读取
+        if "线上" in data_source:
+            stock_df = ak.stock_info_a_code_name()
+        else:
+            if uploaded_file is None:
+                st.error("请先上传包含股票代码的 Excel 文件。")
+                st.stop()
+            stock_df = pd.read_excel(uploaded_file, dtype={"code": str})
 
-# 启动主循环
-window.mainloop()
+        # 确保 code 是字符串类型
+        stock_df["code"] = stock_df["code"].astype(str)
+        stock_df["name"] = stock_df["name"].astype(str)
+
+        # --- 条件过滤 ---
+        filtered_df = stock_df.copy()
+
+        if prefix:
+            filtered_df = filtered_df[filtered_df["code"].str.startswith(prefix)]
+        if suffix:
+            filtered_df = filtered_df[filtered_df["code"].str.endswith(suffix)]
+        if name_keyword:
+            filtered_df = filtered_df[filtered_df["name"].str.contains(name_keyword, case=False, na=False)]
+
+        # --- 显示结果 ---
+        if filtered_df.empty:
+            st.warning("未找到符合条件的股票。请调整筛选条件。")
+        else:
+            st.success(f"共找到 {len(filtered_df)} 条匹配结果：")
+            st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
+
+            # 下载按钮
+            csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                label="📥 下载结果为 CSV",
+                data=csv,
+                file_name="股票查询结果.csv",
+                mime="text/csv"
+            )
+
+    except Exception as e:
+        st.error(f"出错了：{e}")
