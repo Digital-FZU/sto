@@ -13,21 +13,45 @@ st.set_page_config(
     }
 )
 
-# 页面样式和标题
+# 自定义CSS美化和响应式布局
 st.markdown("""
     <style>
+        /* 主标题 */
         .main-title {
-            font-size: 32px;
-            font-weight: bold;
+            font-size: 28px;
+            font-weight: 700;
             color: #2c3e50;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            padding-top: 10px;
         }
+        /* 输入框宽度自适应，手机屏幕满宽 */
+        input[type="text"] {
+            width: 100% !important;
+            box-sizing: border-box;
+            font-size: 16px !important;
+            padding: 8px 10px !important;
+            margin-bottom: 12px !important;
+        }
+        /* 按钮宽度满屏，底部间距 */
+        div.stButton > button {
+            width: 100%;
+            padding: 10px 0;
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+        /* 页脚字体大小 */
         .footer {
             text-align: center;
-            font-size: 13px;
+            font-size: 12px;
             color: gray;
-            margin-top: 50px;
+            margin-top: 40px;
+        }
+        /* 适配小屏幕的容器，堆叠布局 */
+        @media only screen and (max-width: 600px) {
+            .stTextInput {
+                margin-bottom: 15px !important;
+            }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -55,40 +79,28 @@ for key in ["input_prefix", "input_suffix", "input_name"]:
     if key not in st.session_state:
         st.session_state[key] = ""
 
-# 清除输入的回调函数
 def clear_inputs():
     st.session_state.input_prefix = ""
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
 
-# 查询输入区域
-with st.container():
-    st.markdown("### 🔎 查询条件")
+# 查询条件部分，竖排布局
+st.markdown("### 🔎 查询条件")
 
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
-    with col2:
-        st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
-    with col3:
-        st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
+st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
+st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
+st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
-    col4, col5 = st.columns([1, 1])
-    with col4:
-        search_btn = st.button("🚀 开始查询")
-    with col5:
-        st.button("🧹 清除查询条件", on_click=clear_inputs)
+search_btn = st.button("🚀 开始查询")
+st.button("🧹 清除查询条件", on_click=clear_inputs)
 
-# 获取输入值
 prefix = st.session_state["input_prefix"]
 suffix = st.session_state["input_suffix"]
 name_keyword = st.session_state["input_name"]
 
-# 模糊匹配函数：判断name是否包含keyword所有字符（无顺序无连续）
 def fuzzy_match(name: str, keyword: str) -> bool:
     return all(char in name for char in keyword)
 
-# 查询逻辑
 if search_btn:
     filtered_df = stock_df.copy()
 
@@ -113,5 +125,4 @@ if search_btn:
             mime="text/csv"
         )
 
-# 页脚
 #st.markdown('<div class="footer">© 2025 A股查询工具 by 你自己 | Powered by Streamlit</div>', unsafe_allow_html=True)
