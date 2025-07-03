@@ -50,17 +50,22 @@ def load_data():
 
 stock_df = load_data()
 
+# ---- 初始化 session_state 避免赋值时报错 ----
+for key in ["input_prefix", "input_suffix", "input_name"]:
+    if key not in st.session_state:
+        st.session_state[key] = ""
+
 # --- 查询输入区域 ---
 with st.container():
     st.markdown("### 🔎 查询条件")
 
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        st.text_input("股票代码前两位", max_chars=2, key="input_prefix", value=st.session_state.get("input_prefix", ""))
+        st.text_input("股票代码前两位", max_chars=2, key="input_prefix", value=st.session_state["input_prefix"])
     with col2:
-        st.text_input("股票代码后两位", max_chars=2, key="input_suffix", value=st.session_state.get("input_suffix", ""))
+        st.text_input("股票代码后两位", max_chars=2, key="input_suffix", value=st.session_state["input_suffix"])
     with col3:
-        st.text_input("股票名称关键词", key="input_name", value=st.session_state.get("input_name", ""))
+        st.text_input("股票名称关键词", key="input_name", value=st.session_state["input_name"])
 
     col4, col5 = st.columns([1, 1])
     with col4:
@@ -68,20 +73,17 @@ with st.container():
     with col5:
         clear_btn = st.button("🧹 清除查询条件")
 
-# --- 清除按钮修正 ---
+# --- 清除按钮逻辑 ---
 if clear_btn:
-    # 先清空 session_state 对应值
     for key in ["input_prefix", "input_suffix", "input_name"]:
-        if key in st.session_state:
-            st.session_state[key] = ""
-    # 再清空 URL 查询参数，强制刷新
+        st.session_state[key] = ""
     st.experimental_set_query_params()
     st.rerun()
 
 # --- 获取输入值 ---
-prefix = st.session_state.get("input_prefix", "")
-suffix = st.session_state.get("input_suffix", "")
-name_keyword = st.session_state.get("input_name", "")
+prefix = st.session_state["input_prefix"]
+suffix = st.session_state["input_suffix"]
+name_keyword = st.session_state["input_name"]
 
 # --- 查询逻辑 ---
 if search_btn:
