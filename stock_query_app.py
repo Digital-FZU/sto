@@ -50,7 +50,7 @@ def load_data():
 
 stock_df = load_data()
 
-# ---- 初始化 session_state 避免赋值时报错 ----
+# 初始化 session_state
 for key in ["input_prefix", "input_suffix", "input_name"]:
     if key not in st.session_state:
         st.session_state[key] = ""
@@ -61,7 +61,7 @@ def clear_inputs():
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
 
-# --- 查询输入区域 ---
+# 查询输入区域
 with st.container():
     st.markdown("### 🔎 查询条件")
 
@@ -71,20 +71,24 @@ with st.container():
     with col2:
         st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
     with col3:
-        st.text_input("股票名称关键词", key="input_name")
+        st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
     col4, col5 = st.columns([1, 1])
     with col4:
         search_btn = st.button("🚀 开始查询")
     with col5:
-        clear_btn = st.button("🧹 清除查询条件", on_click=clear_inputs)
+        st.button("🧹 清除查询条件", on_click=clear_inputs)
 
-# --- 获取输入值 ---
+# 获取输入值
 prefix = st.session_state["input_prefix"]
 suffix = st.session_state["input_suffix"]
 name_keyword = st.session_state["input_name"]
 
-# --- 查询逻辑 ---
+# 模糊匹配函数：判断name是否包含keyword所有字符（无顺序无连续）
+def fuzzy_match(name: str, keyword: str) -> bool:
+    return all(char in name for char in keyword)
+
+# 查询逻辑
 if search_btn:
     filtered_df = stock_df.copy()
 
@@ -93,7 +97,7 @@ if search_btn:
     if suffix:
         filtered_df = filtered_df[filtered_df["code"].str.endswith(suffix)]
     if name_keyword:
-        filtered_df = filtered_df[filtered_df["name"].str.contains(name_keyword, case=False, na=False)]
+        filtered_df = filtered_df[filtered_df["name"].apply(lambda x: fuzzy_match(x, name_keyword))]
 
     if filtered_df.empty:
         st.warning("😥 没有找到符合条件的股票，请尝试调整关键词。")
