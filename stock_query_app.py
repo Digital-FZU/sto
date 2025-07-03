@@ -32,7 +32,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">📈 A股股票代码查询工具</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈股票代码查询</div>', unsafe_allow_html=True)
 
 # --- 加载数据 ---
 EXCEL_FILE = "A股股票列表.xlsx"
@@ -56,11 +56,11 @@ with st.container():
 
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
+        st.text_input("股票代码前两位", max_chars=2, key="input_prefix", value=st.session_state.get("input_prefix", ""))
     with col2:
-        st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
+        st.text_input("股票代码后两位", max_chars=2, key="input_suffix", value=st.session_state.get("input_suffix", ""))
     with col3:
-        st.text_input("股票名称关键词", key="input_name")
+        st.text_input("股票名称关键词", key="input_name", value=st.session_state.get("input_name", ""))
 
     col4, col5 = st.columns([1, 1])
     with col4:
@@ -68,18 +68,15 @@ with st.container():
     with col5:
         clear_btn = st.button("🧹 清除查询条件")
 
-# ✅ 清除按钮 - 安全更新 session_state（避免报错）
+# ✅ 清除按钮逻辑：刷新页面清空所有状态
 if clear_btn:
-    st.session_state.update({
-        "input_prefix": "",
-        "input_suffix": "",
-        "input_name": ""
-    })
+    st.experimental_set_query_params()
+    st.rerun()
 
-# --- 读取查询条件 ---
-prefix = st.session_state.input_prefix
-suffix = st.session_state.input_suffix
-name_keyword = st.session_state.input_name
+# --- 获取输入值 ---
+prefix = st.session_state.get("input_prefix", "")
+suffix = st.session_state.get("input_suffix", "")
+name_keyword = st.session_state.get("input_name", "")
 
 # --- 查询逻辑 ---
 if search_btn:
