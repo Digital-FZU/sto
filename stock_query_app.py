@@ -75,10 +75,15 @@ with st.container():
 
 # --- 清除按钮逻辑 ---
 if clear_btn:
-    for key in ["input_prefix", "input_suffix", "input_name"]:
-        st.session_state[key] = ""
+    # 避免直接赋值，先用 dict 形式更新
+    updates = {}
+    for k in ["input_prefix", "input_suffix", "input_name"]:
+        updates[k] = ""
+    st.session_state.update(updates)
+
     st.experimental_set_query_params()
-    st.rerun()
+    st.experimental_rerun()
+
 
 # --- 获取输入值 ---
 prefix = st.session_state["input_prefix"]
