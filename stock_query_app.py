@@ -84,8 +84,8 @@ def clear_inputs():
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
 
-# 查询条件部分，竖排布局
-st.markdown("### 🔎 查询条件")
+## 查询条件部分，竖排布局
+#st.markdown("### 🔎 查询条件")
 
 st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
 st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
