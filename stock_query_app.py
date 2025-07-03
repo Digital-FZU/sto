@@ -3,7 +3,7 @@ import pandas as pd
 
 # 页面配置
 st.set_page_config(
-    page_title="股票查询工具",
+    page_title="A股股票查询工具",
     layout="centered",
     initial_sidebar_state="auto",
     menu_items={
@@ -32,7 +32,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">📈股票代码查询</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票代码查询工具</div>', unsafe_allow_html=True)
 
 # --- 加载数据 ---
 EXCEL_FILE = "A股股票列表.xlsx"
@@ -68,11 +68,13 @@ with st.container():
     with col5:
         clear_btn = st.button("🧹 清除查询条件")
 
-# --- 清除按钮逻辑（安全兼容） ---
+# ✅ 清除按钮 - 安全更新 session_state（避免报错）
 if clear_btn:
-    st.session_state.input_prefix = ""
-    st.session_state.input_suffix = ""
-    st.session_state.input_name = ""
+    st.session_state.update({
+        "input_prefix": "",
+        "input_suffix": "",
+        "input_name": ""
+    })
 
 # --- 读取查询条件 ---
 prefix = st.session_state.input_prefix
@@ -104,5 +106,5 @@ if search_btn:
             mime="text/csv"
         )
 
-# --- 页脚 ---
-st.markdown('<div class="footer">© 2025 A股查询工具 by HaHa | Powered by Streamlit</div>', unsafe_allow_html=True)
+# 页脚
+#st.markdown('<div class="footer">© 2025 A股查询工具 by 你自己 | Powered by Streamlit</div>', unsafe_allow_html=True)
