@@ -68,8 +68,13 @@ with st.container():
     with col5:
         clear_btn = st.button("🧹 清除查询条件")
 
-# ✅ 清除按钮逻辑：刷新页面清空所有状态
+# --- 清除按钮修正 ---
 if clear_btn:
+    # 先清空 session_state 对应值
+    for key in ["input_prefix", "input_suffix", "input_name"]:
+        if key in st.session_state:
+            st.session_state[key] = ""
+    # 再清空 URL 查询参数，强制刷新
     st.experimental_set_query_params()
     st.rerun()
 
