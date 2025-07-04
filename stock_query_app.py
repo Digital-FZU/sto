@@ -139,11 +139,9 @@ if st.session_state.search_done:
         
             fig, axlist = mpf.plot(df, type='candle', style='charles',
                                    volume=True, mav=(5, 10), returnfig=True)
-        
+            st.write(df.head())
             st.pyplot(fig)
 
         if selected_code:
             st.markdown("### 📈 当前选中股票的K线图")
-            st.write(df.head())
-
             plot_k_chart(selected_code)
