@@ -173,7 +173,9 @@ if search_btn:
                 fig, axlist = mpf.plot(df, type="candle", style="yahoo",
                                        volume=True, mav=(5, 10), returnfig=True)
                 st.pyplot(fig)
-        
+            st.write(df.dtypes)
+            st.write(df.head())
+
             except Exception as e:
                 st.error(f"📛 K线图绘制失败: {e}")
 
