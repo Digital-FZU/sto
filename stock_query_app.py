@@ -137,22 +137,31 @@ if search_btn:
         # 画K线图
         def plot_k_chart(stock_code):
             try:
-                # 添加后缀
+                # 添加 .SZ / .SS 后缀
                 ticker = f"{stock_code}.SZ" if stock_code.startswith(("0", "3")) else f"{stock_code}.SS"
+        
+                # 下载数据
                 df = yf.download(ticker, period="3mo", interval="1d")
-
+        
                 if df.empty:
-                    st.error("⚠️ 无法获取该股票的历史数据，可能是代码无效或无数据。")
+                    st.error("⚠️ 无法获取该股票的历史数据。")
                     return
-
+        
+                # 保留需要的列
                 df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
-
-                # 保证所有数据是数值类型
+        
+                # 强制转换为 float，错误的强制为 NaN
                 for col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
+        
+                # 丢弃含 NaN 的行
                 df.dropna(inplace=True)
-
-                # 画图
+        
+                if df.empty:
+                    st.error("📛 清洗后无可用数据，无法绘制K线图。")
+                    return
+        
+                # 使用 mplfinance 绘图
                 fig, _ = mpf.plot(
                     df,
                     type="candle",
@@ -162,9 +171,10 @@ if search_btn:
                     returnfig=True
                 )
                 st.pyplot(fig)
-
+        
             except Exception as e:
                 st.error(f"📛 K线图绘制失败: {e}")
+
 
         st.markdown("---")
         st.subheader("📊 K线图展示")
