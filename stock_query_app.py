@@ -130,16 +130,25 @@ else:
     filtered_df = pd.DataFrame(columns=stock_df.columns)
 
 # 选择股票（显示名称，value是code）
+# 过滤后的股票列表，名字和代码组成元组列表
 options = list(zip(filtered_df["name"], filtered_df["code"]))
+
 if options:
-    selected_name, selected_code = st.selectbox(
+    # 显示selectbox，显示股票名称，返回(name, code)元组
+    selected = st.selectbox(
         "选择要查看K线图的股票",
         options=options,
-        format_func=lambda x: x[0],
-        key="selected_stock"
+        format_func=lambda x: x[0]
     )
+    selected_name, selected_code = selected
 else:
-    selected_code = None
+    st.info("😥 没有符合条件的股票，无法选择查看K线图。")
+    selected_name, selected_code = None, None
+
+# 选中了有效股票才绘图
+if selected_code:
+    plot_k_chart(selected_code)
+
 
 # K线图绘制函数，使用Plotly
 def plot_k_chart_plotly(stock_code):
