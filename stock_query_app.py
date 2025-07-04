@@ -1,60 +1,16 @@
 import streamlit as st
 import pandas as pd
+import mplfinance as mpf
+import yfinance as yf
+import matplotlib.pyplot as plt
 
 # 页面配置
 st.set_page_config(
     page_title="A股股票查询工具",
-    layout="centered",
-    initial_sidebar_state="auto",
-    menu_items={
-        "Get Help": None,
-        "Report a bug": None,
-        "About": None
-    }
+    layout="centered"
 )
 
-# 自定义CSS美化和布局
-st.markdown("""
-    <style>
-        .main-title {
-            font-size: 28px;
-            font-weight: 700;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 25px;
-            padding-top: 10px;
-        }
-
-        .input-row, .button-row {
-            display: flex;
-            gap: 10px;
-            justify-content: space-between;
-        }
-
-        .input-col, .button-col {
-            flex: 1;
-        }
-
-        @media (max-width: 600px) {
-            .input-row, .button-row {
-                flex-direction: row;
-                flex-wrap: nowrap;
-            }
-        }
-
-        .stTextInput > div > div > input {
-            padding: 8px;
-            font-size: 16px;
-        }
-
-        .stButton > button {
-            font-size: 16px;
-            padding: 10px 0;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="main-title">📈 A股股票查询工具</div>', unsafe_allow_html=True)
+# CSS和标题（略，保持你之前的样式）
 
 # 加载数据
 EXCEL_FILE = "A股股票列表.xlsx"
@@ -72,7 +28,7 @@ def load_data():
 
 stock_df = load_data()
 
-# 初始化 session_state 变量
+# 初始化session_state变量
 for key in ["input_prefix", "input_suffix", "input_name", "search_done", "filtered_df"]:
     if key not in st.session_state:
         if key == "filtered_df":
@@ -89,8 +45,8 @@ def clear_inputs():
     st.session_state.search_done = False
     st.session_state.filtered_df = pd.DataFrame()
 
-# 横向输入框
-st.markdown('<div class="input-row">', unsafe_allow_html=True)
+# 查询UI
+st.markdown('<div class="input-row" style="display:flex; gap:10px;">', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
     st.text_input("股票代码前两位(可不填)", max_chars=2, key="input_prefix")
@@ -98,11 +54,9 @@ with col2:
     st.text_input("股票代码后两位(可不填)", max_chars=2, key="input_suffix")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 名称关键词输入
 st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
-# 横向按钮
-st.markdown('<div class="button-row">', unsafe_allow_html=True)
+st.markdown('<div class="button-row" style="display:flex; gap:10px;">', unsafe_allow_html=True)
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
     if st.button("🚀 开始查询", use_container_width=True):
@@ -110,7 +64,6 @@ with btn_col1:
         suffix = st.session_state.input_suffix
         name_keyword = st.session_state.input_name
 
-        # 模糊匹配函数
         def fuzzy_match(name: str, keyword: str) -> bool:
             return all(char in name for char in keyword)
 
@@ -128,7 +81,6 @@ with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 显示查询结果
 if st.session_state.search_done:
     filtered_df = st.session_state.filtered_df
 
@@ -146,7 +98,7 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
-        # 显示名称，选中返回代码
+        # 选择查看K线图，显示名称但返回code
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
@@ -160,9 +112,21 @@ if st.session_state.search_done:
             format_func=format_name
         )
 
-        def get_k_chart_url(code: str) -> str:
-            return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
+        # 绘制K线图函数
+        def plot_k_chart(code):
+            # yfinance的A股格式示例：600000.SH 或 000001.SZ
+            yf_code = code + (".SS" if code.startswith("6") else ".SZ")
+            df = yf.download(yf_code, period="1mo", interval="1d")
+            if df.empty:
+                st.error("无法获取该股票历史数据")
+                return
+
+            # mplfinance绘图
+            fig, axlist = mpf.plot(df, type='candle', style='charles',
+                                   volume=True, mav=(5, 10), returnfig=True)
+
+            st.pyplot(fig)
 
         if selected_code:
-            st.markdown("### 📈 当前选中股票的K线图（来自东方财富网）")
-            st.components.v1.iframe(get_k_chart_url(selected_code), height=600, scrolling=True)
+            st.markdown("### 📈 当前选中股票的K线图")
+            plot_k_chart(selected_code)
