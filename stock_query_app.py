@@ -169,12 +169,12 @@ if search_btn:
                 if df.empty:
                     st.error("📛 有效数据为空，无法绘图")
                     return
-        
+                st.write(df.dtypes)
+                st.write(df.head())
                 fig, axlist = mpf.plot(df, type="candle", style="yahoo",
                                        volume=True, mav=(5, 10), returnfig=True)
                 st.pyplot(fig)
-            st.write(df.dtypes)
-            st.write(df.head())
+
 
             except Exception as e:
                 st.error(f"📛 K线图绘制失败: {e}")
