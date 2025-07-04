@@ -25,7 +25,7 @@ st.markdown("""
             margin-bottom: 25px;
             padding-top: 10px;
         }
-        /* 输入框宽度自适应，手机屏幕满宽 */
+        /* 输入框宽度自适应 */
         input[type="text"] {
             width: 100% !important;
             box-sizing: border-box;
@@ -35,10 +35,8 @@ st.markdown("""
         }
         /* 按钮宽度满屏，底部间距 */
         div.stButton > button {
-            width: 100%;
-            padding: 10px 0;
             font-size: 16px;
-            margin-bottom: 12px;
+            padding: 10px 0;
         }
         /* 页脚字体大小 */
         .footer {
@@ -47,10 +45,13 @@ st.markdown("""
             color: gray;
             margin-top: 40px;
         }
-        /* 适配小屏幕的容器，堆叠布局 */
+        /* 响应式输入与按钮在移动端整齐显示 */
+        .block-container .stTextInput, .block-container .stButton {
+            margin-bottom: 10px;
+        }
         @media only screen and (max-width: 600px) {
-            .stTextInput {
-                margin-bottom: 15px !important;
+            .stTextInput > div, .stButton {
+                width: 100% !important;
             }
         }
     </style>
@@ -84,23 +85,32 @@ def clear_inputs():
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
 
-## 查询条件部分，竖排布局
-#st.markdown("### 🔎 查询条件")
+# 查询条件区域（紧凑排列）
+col1, col2 = st.columns(2)
+with col1:
+    st.text_input("代码前两位（可不填）", max_chars=2, key="input_prefix", help="例如 60、00、30 等")
+with col2:
+    st.text_input("代码后两位（可不填）", max_chars=2, key="input_suffix", help="例如 01、88、25 等")
 
-st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
-st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
 st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
-search_btn = st.button("🚀 开始查询")
-st.button("🧹 清除查询条件", on_click=clear_inputs)
+# 查询与清除按钮（同一行）
+col_btn1, col_btn2 = st.columns(2)
+with col_btn1:
+    search_btn = st.button("🚀 开始查询", use_container_width=True)
+with col_btn2:
+    st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 
+# 获取输入值
 prefix = st.session_state["input_prefix"]
 suffix = st.session_state["input_suffix"]
 name_keyword = st.session_state["input_name"]
 
+# 模糊匹配函数
 def fuzzy_match(name: str, keyword: str) -> bool:
     return all(char in name for char in keyword)
 
+# 查询逻辑
 if search_btn:
     filtered_df = stock_df.copy()
 
@@ -125,4 +135,5 @@ if search_btn:
             mime="text/csv"
         )
 
-#st.markdown('<div class="footer">© 2025 A股查询工具 by 你自己 | Powered by Streamlit</div>', unsafe_allow_html=True)
+# 页脚（可启用）
+# st.markdown('<div class="footer">© 2025 A股查询工具 | Powered by Streamlit</div>', unsafe_allow_html=True)
