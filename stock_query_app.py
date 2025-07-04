@@ -72,17 +72,24 @@ def load_data():
 
 stock_df = load_data()
 
-# 初始化 session_state
-for key in ["input_prefix", "input_suffix", "input_name"]:
+# 初始化 session_state 变量
+for key in ["input_prefix", "input_suffix", "input_name", "search_done", "filtered_df"]:
     if key not in st.session_state:
-        st.session_state[key] = ""
+        if key == "filtered_df":
+            st.session_state[key] = pd.DataFrame()
+        elif key == "search_done":
+            st.session_state[key] = False
+        else:
+            st.session_state[key] = ""
 
 def clear_inputs():
     st.session_state.input_prefix = ""
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
+    st.session_state.search_done = False
+    st.session_state.filtered_df = pd.DataFrame()
 
-# 横向输入
+# 横向输入框
 st.markdown('<div class="input-row">', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
@@ -91,35 +98,39 @@ with col2:
     st.text_input("股票代码后两位(可不填)", max_chars=2, key="input_suffix")
 st.markdown('</div>', unsafe_allow_html=True)
 
+# 名称关键词输入
 st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
 # 横向按钮
 st.markdown('<div class="button-row">', unsafe_allow_html=True)
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
-    search_btn = st.button("🚀 开始查询", use_container_width=True)
+    if st.button("🚀 开始查询", use_container_width=True):
+        prefix = st.session_state.input_prefix
+        suffix = st.session_state.input_suffix
+        name_keyword = st.session_state.input_name
+
+        # 模糊匹配函数
+        def fuzzy_match(name: str, keyword: str) -> bool:
+            return all(char in name for char in keyword)
+
+        filtered_df = stock_df.copy()
+        if prefix:
+            filtered_df = filtered_df[filtered_df["code"].str.startswith(prefix)]
+        if suffix:
+            filtered_df = filtered_df[filtered_df["code"].str.endswith(suffix)]
+        if name_keyword:
+            filtered_df = filtered_df[filtered_df["name"].apply(lambda x: fuzzy_match(x, name_keyword))]
+
+        st.session_state.filtered_df = filtered_df
+        st.session_state.search_done = True
 with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 获取输入
-prefix = st.session_state["input_prefix"]
-suffix = st.session_state["input_suffix"]
-name_keyword = st.session_state["input_name"]
-
-# 模糊匹配
-def fuzzy_match(name: str, keyword: str) -> bool:
-    return all(char in name for char in keyword)
-
-# 查询逻辑
-if search_btn:
-    filtered_df = stock_df.copy()
-    if prefix:
-        filtered_df = filtered_df[filtered_df["code"].str.startswith(prefix)]
-    if suffix:
-        filtered_df = filtered_df[filtered_df["code"].str.endswith(suffix)]
-    if name_keyword:
-        filtered_df = filtered_df[filtered_df["name"].apply(lambda x: fuzzy_match(x, name_keyword))]
+# 显示查询结果
+if st.session_state.search_done:
+    filtered_df = st.session_state.filtered_df
 
     if filtered_df.empty:
         st.warning("😥 没有找到符合条件的股票，请尝试调整关键词。")
@@ -127,7 +138,6 @@ if search_btn:
         st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的股票：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
-        # 下载按钮
         csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
             label="📥 下载结果为 CSV 文件",
@@ -136,16 +146,12 @@ if search_btn:
             mime="text/csv"
         )
 
-        # 选择查看 K 线图
+        # 选择查看K线图
         selected_code = st.selectbox("📊 选择要查看K线图的股票", filtered_df["code"].tolist())
 
-        # 东方财富 K 线图链接拼接
         def get_k_chart_url(code: str) -> str:
             return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
 
         if selected_code:
             st.markdown("### 📈 当前选中股票的K线图（来自东方财富网）")
             st.components.v1.iframe(get_k_chart_url(selected_code), height=600, scrolling=True)
-
-# 页脚
-# st.markdown('<div class="footer">© 2025 A股查询工具 | Powered by Streamlit</div>', unsafe_allow_html=True)
