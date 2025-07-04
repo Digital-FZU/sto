@@ -69,7 +69,7 @@ def load_data():
 
 stock_df = load_data()
 
-# --- 自定义表单输入区 ---
+# --- 表单输入 ---
 with st.form("search_form"):
     st.markdown("""
         <div class="row-flex">
@@ -83,18 +83,18 @@ with st.form("search_form"):
     submitted = st.form_submit_button("🚀 开始查询")
     clear = st.form_submit_button("🧹 清除条件")
 
-# --- 获取前/后缀值（通过 JS 注入的输入框） ---
-prefix = st.experimental_get_query_params().get("prefix", [""])[0]
-suffix = st.experimental_get_query_params().get("suffix", [""])[0]
+# --- 替代旧API：使用 st.query_params ---
+prefix = st.query_params.get("prefix", [""])[0]
+suffix = st.query_params.get("suffix", [""])[0]
 
-# 兼容 Streamlit 不支持 HTML input 的获取问题，使用 workaround
+# 兼容状态控制
 if "_form_submit" not in st.session_state:
     st.session_state["_form_submit"] = False
 
 if submitted:
     st.session_state["_form_submit"] = True
-    prefix = st.experimental_get_query_params().get("prefix", [""])[0]
-    suffix = st.experimental_get_query_params().get("suffix", [""])[0]
+    prefix = st.query_params.get("prefix", [""])[0]
+    suffix = st.query_params.get("suffix", [""])[0]
 
 if clear:
     st.session_state["_form_submit"] = False
