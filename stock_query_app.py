@@ -145,10 +145,6 @@ else:
     st.info("😥 没有符合条件的股票，无法选择查看K线图。")
     selected_name, selected_code = None, None
 
-# 选中了有效股票才绘图
-if selected_code:
-    plot_k_chart(selected_code)
-
 
 # K线图绘制函数，使用Plotly
 def plot_k_chart_plotly(stock_code):
