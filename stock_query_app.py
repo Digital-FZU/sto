@@ -118,29 +118,42 @@ if st.session_state.search_done:
             df = yf.download(yf_code, period="1mo", interval="1d")
         
             if df.empty:
-                st.error("无法获取该股票历史数据")
+                st.error("⚠️ 无法获取该股票历史数据")
                 return
         
-            df = df[["Open", "High", "Low", "Close", "Volume"]]
-            df = df.dropna()
-            df.index = pd.to_datetime(df.index)
+            # 只保留K线需要的列
+            df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
         
+            # 清洗数据：去掉缺失值
+            df.dropna(inplace=True)
+        
+            # 确保是时间索引
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
+        
+            # 确保所有列为数值类型
             try:
-                df = df.astype({
-                    "Open": float,
-                    "High": float,
-                    "Low": float,
-                    "Close": float,
-                    "Volume": int
-                })
+                for col in ["Open", "High", "Low", "Close"]:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")  # 强制转换为float
+                df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0).astype(int)
+                df.dropna(inplace=True)
             except Exception as e:
-                st.error(f"数据转换错误: {e}")
+                st.error(f"📛 数据处理失败: {e}")
                 return
         
-            fig, axlist = mpf.plot(df, type='candle', style='charles',
-                                   volume=True, mav=(5, 10), returnfig=True)
-            st.write(df.head())
-            st.pyplot(fig)
+            # 再次检查是否还有非数值
+            if not all([pd.api.types.is_numeric_dtype(df[col]) for col in ["Open", "High", "Low", "Close", "Volume"]]):
+                st.error("❌ 数据列中仍存在非数值，请检查数据来源。")
+                st.write(df.dtypes)
+                return
+        
+            # 绘图
+            try:
+                fig, axlist = mpf.plot(df, type="candle", style="charles",
+                                       volume=True, mav=(5, 10), returnfig=True)
+                st.pyplot(fig)
+            except Exception as e:
+                st.error(f"📉 绘图失败: {e}")
 
         if selected_code:
             st.markdown("### 📈 当前选中股票的K线图")
