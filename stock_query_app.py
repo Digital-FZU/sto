@@ -114,17 +114,28 @@ if st.session_state.search_done:
 
         # 绘制K线图函数
         def plot_k_chart(code):
-            # yfinance的A股格式示例：600000.SH 或 000001.SZ
             yf_code = code + (".SS" if code.startswith("6") else ".SZ")
             df = yf.download(yf_code, period="1mo", interval="1d")
+        
             if df.empty:
                 st.error("无法获取该股票历史数据")
                 return
-
-            # mplfinance绘图
+        
+            # 保证列名全是数值类型，去掉NA
+            df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
+        
+            # 确保数据类型正确
+            df = df.astype({
+                "Open": float,
+                "High": float,
+                "Low": float,
+                "Close": float,
+                "Volume": int
+            })
+        
             fig, axlist = mpf.plot(df, type='candle', style='charles',
                                    volume=True, mav=(5, 10), returnfig=True)
-
+        
             st.pyplot(fig)
 
         if selected_code:
