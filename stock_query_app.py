@@ -121,17 +121,21 @@ if st.session_state.search_done:
                 st.error("无法获取该股票历史数据")
                 return
         
-            # 保证列名全是数值类型，去掉NA
-            df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
+            df = df[["Open", "High", "Low", "Close", "Volume"]]
+            df = df.dropna()
+            df.index = pd.to_datetime(df.index)
         
-            # 确保数据类型正确
-            df = df.astype({
-                "Open": float,
-                "High": float,
-                "Low": float,
-                "Close": float,
-                "Volume": int
-            })
+            try:
+                df = df.astype({
+                    "Open": float,
+                    "High": float,
+                    "Low": float,
+                    "Close": float,
+                    "Volume": int
+                })
+            except Exception as e:
+                st.error(f"数据转换错误: {e}")
+                return
         
             fig, axlist = mpf.plot(df, type='candle', style='charles',
                                    volume=True, mav=(5, 10), returnfig=True)
