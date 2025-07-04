@@ -114,47 +114,66 @@ if st.session_state.search_done:
 
         # 绘制K线图函数
         def plot_k_chart(code):
+            # 获取 yfinance 兼容的代码
             yf_code = code + (".SS" if code.startswith("6") else ".SZ")
+        
+            # 下载数据
             df = yf.download(yf_code, period="1mo", interval="1d")
         
+            # 检查是否为空
             if df.empty:
-                st.error("⚠️ 无法获取该股票历史数据")
+                st.error("⚠️ 无法获取该股票的历史数据")
                 return
         
             # 只保留K线需要的列
-            df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+            required_cols = ["Open", "High", "Low", "Close", "Volume"]
+            df = df[required_cols].copy()
         
-            # 清洗数据：去掉缺失值
+            # 清理数据
             df.dropna(inplace=True)
         
-            # 确保是时间索引
+            # 确保索引是时间格式
             if not isinstance(df.index, pd.DatetimeIndex):
                 df.index = pd.to_datetime(df.index)
         
-            # 确保所有列为数值类型
+            # 强制转换所有列为 float（Volume 可为 int）
             try:
-                for col in ["Open", "High", "Low", "Close"]:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")  # 强制转换为float
-                df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0).astype(int)
+                df["Open"] = pd.to_numeric(df["Open"], errors="coerce")
+                df["High"] = pd.to_numeric(df["High"], errors="coerce")
+                df["Low"] = pd.to_numeric(df["Low"], errors="coerce")
+                df["Close"] = pd.to_numeric(df["Close"], errors="coerce")
+                df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
+        
+                # 再清理一次空值
                 df.dropna(inplace=True)
+        
+                # Volume 转为 int，避免类型报错
+                df["Volume"] = df["Volume"].astype(int)
             except Exception as e:
-                st.error(f"📛 数据处理失败: {e}")
+                st.error(f"📛 数据转换失败: {e}")
                 return
         
-            # 再次检查是否还有非数值
-            if not all([pd.api.types.is_numeric_dtype(df[col]) for col in ["Open", "High", "Low", "Close", "Volume"]]):
-                st.error("❌ 数据列中仍存在非数值，请检查数据来源。")
+            # 最终确认列类型
+            if not all([pd.api.types.is_numeric_dtype(df[col]) for col in required_cols]):
+                st.error("❌ 数据列中仍存在非数值，请检查源数据格式")
                 st.write(df.dtypes)
                 return
-        
-            # 绘图
+            st.write(df.tail(5))
+            # 开始绘图
             try:
-                fig, axlist = mpf.plot(df, type="candle", style="charles",
-                                       volume=True, mav=(5, 10), returnfig=True)
+                fig, _ = mpf.plot(
+                    df,
+                    type='candle',
+                    style='yahoo',
+                    volume=True,
+                    mav=(5, 10),
+                    returnfig=True,
+                    figsize=(8, 5)
+                )
                 st.pyplot(fig)
             except Exception as e:
-                st.error(f"📉 绘图失败: {e}")
+                st.error(f"📉 绘制K线图失败: {e}")
 
-        if selected_code:
-            st.markdown("### 📈 当前选中股票的K线图")
+        if not filtered_df.empty:
+            selected_code = filtered_df.iloc[0]["code"]
             plot_k_chart(selected_code)
