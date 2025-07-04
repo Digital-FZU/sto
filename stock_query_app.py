@@ -144,4 +144,6 @@ if st.session_state.search_done:
 
         if selected_code:
             st.markdown("### 📈 当前选中股票的K线图")
+            st.write(df.head())
+
             plot_k_chart(selected_code)
