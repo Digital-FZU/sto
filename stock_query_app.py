@@ -159,19 +159,27 @@ if search_btn:
                 for col in required_cols:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
                 df.dropna(subset=required_cols, inplace=True)
-        
+
+                st.write(df.dtypes)
+                st.write(df.head())
+
                 # 确认必须列存在
                 missing_cols = [col for col in required_cols if col not in df.columns]
                 if missing_cols:
                     st.error(f"📛 数据缺失列: {missing_cols}")
                     return
+                
+                st.write(df.dtypes)
+                st.write(df.head())
         
                 # 确认列为数字
                 non_numeric_cols = [col for col in required_cols if not pd.api.types.is_numeric_dtype(df[col])]
                 if non_numeric_cols:
                     st.error(f"📛 列含非数字数据: {non_numeric_cols}")
                     return
-        
+                st.write(df.dtypes)
+                st.write(df.head())
+
                 if df.empty:
                     st.error("📛 有效数据为空，无法绘图")
                     return
