@@ -54,7 +54,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">📈 A股股票代码查询工具</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票查询工具</div>', unsafe_allow_html=True)
 
 # 加载数据
 EXCEL_FILE = "A股股票列表.xlsx"
@@ -146,8 +146,19 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
-        # 选择查看K线图
-        selected_code = st.selectbox("📊 选择要查看K线图的股票", filtered_df["code"].tolist())
+        # 显示名称，选中返回代码
+        code_list = filtered_df["code"].tolist()
+        name_list = filtered_df["name"].tolist()
+
+        def format_name(code):
+            idx = code_list.index(code)
+            return f"{name_list[idx]}"
+
+        selected_code = st.selectbox(
+            "📊 选择要查看K线图的股票",
+            options=code_list,
+            format_func=format_name
+        )
 
         def get_k_chart_url(code: str) -> str:
             return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
