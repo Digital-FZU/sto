@@ -151,38 +151,35 @@ if search_btn:
                 if df.empty:
                     st.error("⚠️ 无法获取历史行情数据")
                     return
-
-                st.write(df.dtypes)
-                st.write(df.head())
-                
-                # 只保留必须列
+        
                 required_cols = ["Open", "High", "Low", "Close", "Volume"]
                 df = df[required_cols].copy()
         
-                # 转换为数字，并剔除有缺失的行
+                # 转换为数字，并剔除缺失值
                 for col in required_cols:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
                 df.dropna(subset=required_cols, inplace=True)
-
-                st.write(df.dtypes)
-                st.write(df.head())
-                # 再确认类型
-                if not all(pd.api.types.is_numeric_dtype(df[col]) for col in required_cols):
-                    st.error("📛 数据转换失败：有非数字列")
+        
+                # 确认必须列存在
+                missing_cols = [col for col in required_cols if col not in df.columns]
+                if missing_cols:
+                    st.error(f"📛 数据缺失列: {missing_cols}")
                     return
-
-                st.write(df.dtypes)
-                st.write(df.head())
-                
+        
+                # 确认列为数字
+                non_numeric_cols = [col for col in required_cols if not pd.api.types.is_numeric_dtype(df[col])]
+                if non_numeric_cols:
+                    st.error(f"📛 列含非数字数据: {non_numeric_cols}")
+                    return
+        
                 if df.empty:
                     st.error("📛 有效数据为空，无法绘图")
                     return
-
+        
                 fig, axlist = mpf.plot(df, type="candle", style="yahoo",
                                        volume=True, mav=(5, 10), returnfig=True)
                 st.pyplot(fig)
-
-
+        
             except Exception as e:
                 st.error(f"📛 K线图绘制失败: {e}")
 
