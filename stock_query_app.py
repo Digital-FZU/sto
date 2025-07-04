@@ -10,61 +10,67 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# 自定义 CSS 样式
+# 样式
 st.markdown("""
-    <style>
-        .main-title {
-            font-size: 28px;
-            font-weight: 700;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 25px;
-            padding-top: 10px;
-        }
+<style>
+    /* 主标题 */
+    .main-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 25px;
+        padding-top: 10px;
+    }
+    /* 横向输入容器 */
+    .input-row, .button-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: nowrap;
+        justify-content: space-between;
+    }
+    .input-col, .button-col {
+        flex: 1;
+    }
+    /* 按钮和输入框字体大小和内边距 */
+    .stTextInput > div > div > input {
+        padding: 8px;
+        font-size: 16px;
+    }
+    .stButton > button {
+        font-size: 16px;
+        padding: 10px 0;
+        width: 100%;
+    }
+    /* 小屏幕竖屏强制两列并排 */
+    @media (max-width: 600px) {
         .input-row, .button-row {
-            display: flex;
-            gap: 10px;
+            flex-wrap: nowrap !important;
         }
-        .input-col, .button-col {
-            flex: 1;
-        }
-        @media (max-width: 600px) {
-            .input-row, .button-row {
-                flex-direction: row;
-                flex-wrap: nowrap;
-            }
-        }
-        .stTextInput > div > div > input {
-            padding: 8px;
-            font-size: 16px;
-        }
-        .stButton > button {
-            font-size: 16px;
-            padding: 10px 0;
-        }
-    </style>
+    }
+</style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">📈 A股股票代码查询工具</div>', unsafe_allow_html=True)
 
-# --- 加载数据 ---
+# --- 加载股票列表 ---
 EXCEL_FILE = "A股股票列表.xlsx"
 
 @st.cache_data(show_spinner=False)
-def load_data():
+def load_stock_list():
     try:
         df = pd.read_excel(EXCEL_FILE, dtype={"code": str})
         df["code"] = df["code"].astype(str)
         df["name"] = df["name"].astype(str)
         return df
     except Exception as e:
-        st.error(f"❌ 数据读取失败：{e}")
+        st.error(f"❌ 股票列表加载失败：{e}")
         return pd.DataFrame(columns=["code", "name"])
 
-stock_df = load_data()
+stock_df = load_stock_list()
 
 # 初始化 session_state
-for key in ["input_prefix", "input_suffix", "input_name", "selected_code"]:
+for key in ["input_prefix", "input_suffix", "input_name"]:
     if key not in st.session_state:
         st.session_state[key] = ""
 
@@ -72,110 +78,93 @@ def clear_inputs():
     st.session_state.input_prefix = ""
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
-    st.session_state.selected_code = ""
 
-# 横向输入框
+# 横向输入
+st.markdown('<div class="input-row">', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
     st.text_input("股票代码前两位(可不填)", max_chars=2, key="input_prefix")
 with col2:
     st.text_input("股票代码后两位(可不填)", max_chars=2, key="input_suffix")
+st.markdown('</div>', unsafe_allow_html=True)
 
-st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
+# 名称关键词
+st.text_input("股票名称关键词（模糊匹配，无序）", key="input_name")
 
 # 横向按钮
-btn1, btn2 = st.columns(2)
-with btn1:
+st.markdown('<div class="button-row">', unsafe_allow_html=True)
+btn_col1, btn_col2 = st.columns(2)
+with btn_col1:
     search_btn = st.button("🚀 开始查询", use_container_width=True)
-with btn2:
+with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# 模糊匹配
+prefix = st.session_state.input_prefix
+suffix = st.session_state.input_suffix
+name_keyword = st.session_state.input_name
+
 def fuzzy_match(name: str, keyword: str) -> bool:
     return all(char in name for char in keyword)
 
-# 查询逻辑
+# 查询结果
+filtered_df = stock_df.copy()
+if prefix:
+    filtered_df = filtered_df[filtered_df["code"].str.startswith(prefix)]
+if suffix:
+    filtered_df = filtered_df[filtered_df["code"].str.endswith(suffix)]
+if name_keyword:
+    filtered_df = filtered_df[filtered_df["name"].apply(lambda x: fuzzy_match(x, name_keyword))]
+
 if search_btn:
-    df = stock_df.copy()
-
-    if st.session_state.input_prefix:
-        df = df[df["code"].str.startswith(st.session_state.input_prefix)]
-    if st.session_state.input_suffix:
-        df = df[df["code"].str.endswith(st.session_state.input_suffix)]
-    if st.session_state.input_name:
-        df = df[df["name"].apply(lambda x: fuzzy_match(x, st.session_state.input_name))]
-
-    if df.empty:
-        st.warning("😥 没有找到符合条件的股票，请尝试调整关键词。")
+    if filtered_df.empty:
+        st.warning("😥 没有找到符合条件的股票，请调整关键词")
     else:
-        st.success(f"✅ 共找到 {len(df)} 支符合条件的股票：")
-        st.dataframe(df.reset_index(drop=True), use_container_width=True)
+        st.success(f"✅ 共找到 {len(filtered_df)} 支股票：")
+        st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
-        csv = df.to_csv(index=False).encode("utf-8-sig")
+        csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
-            label="📥 下载结果为 CSV 文件",
+            label="📥 下载结果 CSV 文件",
             data=csv,
             file_name="股票查询结果.csv",
             mime="text/csv"
         )
 
-        # 设置默认选中第一支股票的 code
-        st.session_state.selected_code = df.iloc[0]["code"]
+        st.markdown("---")
+        st.markdown("### 🕵️ 选择要查看K线图的股票")
 
-        # 生成下拉选择（显示股票名称）
-        stock_options = df["name"] + "（" + df["code"] + "）"
-        name_code_map = dict(zip(stock_options, df["code"]))
+        options = {f"{row['name']}（{row['code']}）": row["code"] for _, row in filtered_df.iterrows()}
+        selected_name = st.selectbox("选择股票", list(options.keys()))
+        selected_code = options[selected_name]
 
-        selected_name = st.selectbox(
-            "选择要查看K线图的股票：", 
-            options=stock_options,
-            index=0,
-            key="selected_name"
-        )
-        selected_code = name_code_map[selected_name]
-
-        # 画K线图
         def plot_k_chart(stock_code):
             try:
-                # 添加 .SZ / .SS 后缀
-                ticker = f"{stock_code}.SZ" if stock_code.startswith(("0", "3")) else f"{stock_code}.SS"
-        
-                # 下载数据
+                # 处理A股代码，深圳股票0/3开头，上海股票6开头
+                if stock_code.startswith(("0", "3")):
+                    ticker = f"{stock_code}.SZ"
+                elif stock_code.startswith("6"):
+                    ticker = f"{stock_code}.SS"
+                else:
+                    ticker = stock_code
+
                 df = yf.download(ticker, period="3mo", interval="1d")
-        
                 if df.empty:
-                    st.error("⚠️ 无法获取该股票的历史数据。")
+                    st.error("⚠️ 无法获取历史行情数据")
                     return
-        
-                # 保留需要的列
+
                 df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
-        
-                # 强制转换为 float，错误的强制为 NaN
                 for col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
-        
-                # 丢弃含 NaN 的行
                 df.dropna(inplace=True)
-        
                 if df.empty:
-                    st.error("📛 清洗后无可用数据，无法绘制K线图。")
+                    st.error("📛 数据无效，无法绘图")
                     return
-        
-                # 使用 mplfinance 绘图
-                fig, _ = mpf.plot(
-                    df,
-                    type="candle",
-                    style="yahoo",
-                    volume=True,
-                    mav=(5, 10),
-                    returnfig=True
-                )
+
+                fig, axlist = mpf.plot(df, type="candle", style="yahoo",
+                                       volume=True, mav=(5, 10), returnfig=True)
                 st.pyplot(fig)
-        
             except Exception as e:
                 st.error(f"📛 K线图绘制失败: {e}")
 
-
-        st.markdown("---")
-        st.subheader("📊 K线图展示")
         plot_k_chart(selected_code)
