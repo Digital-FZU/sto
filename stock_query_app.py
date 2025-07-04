@@ -140,30 +140,40 @@ if search_btn:
 
         def plot_k_chart(stock_code):
             try:
-                # 处理A股代码，深圳股票0/3开头，上海股票6开头
                 if stock_code.startswith(("0", "3")):
                     ticker = f"{stock_code}.SZ"
                 elif stock_code.startswith("6"):
                     ticker = f"{stock_code}.SS"
                 else:
                     ticker = stock_code
-
+        
                 df = yf.download(ticker, period="3mo", interval="1d")
                 if df.empty:
                     st.error("⚠️ 无法获取历史行情数据")
                     return
-
-                df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
-                for col in df.columns:
+        
+                # 只保留必须列
+                required_cols = ["Open", "High", "Low", "Close", "Volume"]
+                df = df[required_cols].copy()
+        
+                # 转换为数字，并剔除有缺失的行
+                for col in required_cols:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
-                df.dropna(inplace=True)
-                if df.empty:
-                    st.error("📛 数据无效，无法绘图")
+                df.dropna(subset=required_cols, inplace=True)
+        
+                # 再确认类型
+                if not all(pd.api.types.is_numeric_dtype(df[col]) for col in required_cols):
+                    st.error("📛 数据转换失败：有非数字列")
                     return
-
+        
+                if df.empty:
+                    st.error("📛 有效数据为空，无法绘图")
+                    return
+        
                 fig, axlist = mpf.plot(df, type="candle", style="yahoo",
                                        volume=True, mav=(5, 10), returnfig=True)
                 st.pyplot(fig)
+        
             except Exception as e:
                 st.error(f"📛 K线图绘制失败: {e}")
 
