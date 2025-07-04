@@ -13,7 +13,7 @@ st.set_page_config(
     }
 )
 
-# 自定义CSS美化和响应式布局
+# 自定义CSS美化和布局
 st.markdown("""
     <style>
         /* 主标题 */
@@ -25,34 +25,45 @@ st.markdown("""
             margin-bottom: 25px;
             padding-top: 10px;
         }
-        /* 输入框宽度自适应 */
-        input[type="text"] {
-            width: 100% !important;
-            box-sizing: border-box;
-            font-size: 16px !important;
-            padding: 8px 10px !important;
-            margin-bottom: 12px !important;
+
+        /* 横向紧凑行容器 */
+        .input-row {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
         }
-        /* 按钮宽度满屏，底部间距 */
-        div.stButton > button {
+
+        .input-col {
+            flex: 1;
+        }
+
+        /* 按钮对齐 */
+        .button-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .button-col {
+            flex: 1;
+        }
+
+        /* 在小屏幕也不换行 */
+        @media (max-width: 600px) {
+            .input-row, .button-row {
+                flex-direction: row;
+                flex-wrap: nowrap;
+            }
+        }
+
+        /* 微调输入框 */
+        .stTextInput > div > div > input {
+            padding: 8px;
+            font-size: 16px;
+        }
+
+        .stButton > button {
             font-size: 16px;
             padding: 10px 0;
-        }
-        /* 页脚字体大小 */
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            color: gray;
-            margin-top: 40px;
-        }
-        /* 响应式输入与按钮在移动端整齐显示 */
-        .block-container .stTextInput, .block-container .stButton {
-            margin-bottom: 10px;
-        }
-        @media only screen and (max-width: 600px) {
-            .stTextInput > div, .stButton {
-                width: 100% !important;
-            }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -85,21 +96,26 @@ def clear_inputs():
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
 
-# 查询条件区域（紧凑排列）
+# 横向输入：代码前后缀
+st.markdown('<div class="input-row">', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
-    st.text_input("代码前两位（可不填）", max_chars=2, key="input_prefix", help="例如 60、00、30 等")
+    st.text_input("股票代码前两位", max_chars=2, key="input_prefix")
 with col2:
-    st.text_input("代码后两位（可不填）", max_chars=2, key="input_suffix", help="例如 01、88、25 等")
+    st.text_input("股票代码后两位", max_chars=2, key="input_suffix")
+st.markdown('</div>', unsafe_allow_html=True)
 
+# 名称关键词输入
 st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
-# 查询与清除按钮（同一行）
-col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
+# 横向按钮
+st.markdown('<div class="button-row">', unsafe_allow_html=True)
+btn_col1, btn_col2 = st.columns(2)
+with btn_col1:
     search_btn = st.button("🚀 开始查询", use_container_width=True)
-with col_btn2:
+with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # 获取输入值
 prefix = st.session_state["input_prefix"]
@@ -135,5 +151,5 @@ if search_btn:
             mime="text/csv"
         )
 
-# 页脚（可启用）
+# 页脚可加
 # st.markdown('<div class="footer">© 2025 A股查询工具 | Powered by Streamlit</div>', unsafe_allow_html=True)
