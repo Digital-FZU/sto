@@ -114,52 +114,42 @@ if st.session_state.search_done:
 
         # 绘制K线图函数
         def plot_k_chart(code):
-            # 获取 yfinance 兼容的代码
+            # 转换为 yfinance 可识别代码
             yf_code = code + (".SS" if code.startswith("6") else ".SZ")
         
-            # 下载数据
-            df = yf.download(yf_code, period="1mo", interval="1d")
+            # 获取最近 1 个月的日线数据
+            df = yf.download(yf_code, period="1mo", interval="1d", auto_adjust=True)
         
-            # 检查是否为空
             if df.empty:
-                st.error("⚠️ 无法获取该股票的历史数据")
+                st.warning("⚠️ 未能获取该股票的历史数据。")
                 return
         
-            # 只保留K线需要的列
+            # 确保只包含所需列
             required_cols = ["Open", "High", "Low", "Close", "Volume"]
             df = df[required_cols].copy()
         
-            # 清理数据
+            # 转换列类型并移除无法转换的行
+            for col in required_cols:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        
             df.dropna(inplace=True)
         
-            # 确保索引是时间格式
+            # 再次检查列是否为数值型
+            for col in required_cols:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    st.error(f"❌ 列 {col} 含有非数值数据。")
+                    st.write(df[col].head())
+                    return
+        
+            # 检查索引是否为日期
             if not isinstance(df.index, pd.DatetimeIndex):
-                df.index = pd.to_datetime(df.index)
+                try:
+                    df.index = pd.to_datetime(df.index)
+                except Exception as e:
+                    st.error(f"❌ 日期索引转换失败：{e}")
+                    return
         
-            # 强制转换所有列为 float（Volume 可为 int）
-            try:
-                df["Open"] = pd.to_numeric(df["Open"], errors="coerce")
-                df["High"] = pd.to_numeric(df["High"], errors="coerce")
-                df["Low"] = pd.to_numeric(df["Low"], errors="coerce")
-                df["Close"] = pd.to_numeric(df["Close"], errors="coerce")
-                df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
-        
-                # 再清理一次空值
-                df.dropna(inplace=True)
-        
-                # Volume 转为 int，避免类型报错
-                df["Volume"] = df["Volume"].astype(int)
-            except Exception as e:
-                st.error(f"📛 数据转换失败: {e}")
-                return
-        
-            # 最终确认列类型
-            if not all([pd.api.types.is_numeric_dtype(df[col]) for col in required_cols]):
-                st.error("❌ 数据列中仍存在非数值，请检查源数据格式")
-                st.write(df.dtypes)
-                return
-            st.write(df.tail(5))
-            # 开始绘图
+            # 成功后绘图
             try:
                 fig, _ = mpf.plot(
                     df,
@@ -172,7 +162,8 @@ if st.session_state.search_done:
                 )
                 st.pyplot(fig)
             except Exception as e:
-                st.error(f"📉 绘制K线图失败: {e}")
+                st.error(f"📉 绘图失败：{e}")
+
 
         if not filtered_df.empty:
             selected_code = filtered_df.iloc[0]["code"]
