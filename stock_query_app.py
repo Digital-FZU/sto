@@ -151,7 +151,10 @@ if search_btn:
                 if df.empty:
                     st.error("⚠️ 无法获取历史行情数据")
                     return
-        
+
+                st.write(df.dtypes)
+                st.write(df.head())
+                
                 # 只保留必须列
                 required_cols = ["Open", "High", "Low", "Close", "Volume"]
                 df = df[required_cols].copy()
@@ -160,17 +163,21 @@ if search_btn:
                 for col in required_cols:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
                 df.dropna(subset=required_cols, inplace=True)
-        
+
+                st.write(df.dtypes)
+                st.write(df.head())
                 # 再确认类型
                 if not all(pd.api.types.is_numeric_dtype(df[col]) for col in required_cols):
                     st.error("📛 数据转换失败：有非数字列")
                     return
-        
+
+                st.write(df.dtypes)
+                st.write(df.head())
+                
                 if df.empty:
                     st.error("📛 有效数据为空，无法绘图")
                     return
-                st.write(df.dtypes)
-                st.write(df.head())
+
                 fig, axlist = mpf.plot(df, type="candle", style="yahoo",
                                        volume=True, mav=(5, 10), returnfig=True)
                 st.pyplot(fig)
