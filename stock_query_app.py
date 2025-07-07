@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 import requests
 import akshare as ak
-import plotly.express as px
+from datetime import datetime, timedelta
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
 
 # 页面配置
 st.set_page_config(
@@ -10,7 +14,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# 页面标题样式
+# 页面标题
 st.markdown("""
     <style>
         .main-title {
@@ -126,14 +130,12 @@ if st.session_state.search_done:
             codes = filtered_df["code"].tolist()
             info_dict = get_stock_info_from_tencent(codes)
 
-            # 增加实时价格列
             for col in ["当前价格", "昨收", "今开", "涨跌额", "涨跌幅"]:
                 filtered_df[col] = filtered_df["code"].map(lambda x: info_dict.get(x, {}).get(col, None))
 
         st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的股票：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
-        # 下载按钮
         csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
             label="📥 下载结果为 CSV 文件",
@@ -142,7 +144,6 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
-        # 选股票看K线图
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
@@ -163,57 +164,59 @@ if st.session_state.search_done:
             st.markdown("### 📈 当前选中股票的K线图（来自东方财富网）")
             st.components.v1.iframe(get_k_chart_url(selected_code), height=600, scrolling=True)
 
-# —— 新增部分：概念题材强度热力图 —— #
+# 最近一个月涨停题材强度热力图
 
 @st.cache_data(ttl=3600)
-def get_akshare_concept_strength(days=30):
-    try:
-        concept_df = ak.stock_board_concept_name_em()
-    except Exception as e:
-        st.error(f'获取概念板块列表失败: {e}')
-        return pd.DataFrame()
+def get_recent_concept_heatmap_data(days=30):
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=days)
+    date_range = pd.date_range(start=start_date, end=end_date, freq='B')
 
-    dfs = []
-    for _, row in concept_df.iterrows():
-        concept_code = row['板块代码']
-        concept_name = row['板块名称']
+    date_concept_count = defaultdict(lambda: defaultdict(int))
+    failed_dates = []
+
+    for date in date_range:
+        date_str = date.strftime('%Y%m%d')
         try:
-            df = ak.stock_board_concept_index_daily_em(symbol=concept_code)
-            df = df[['trade_date', 'close']].tail(days)
-            df['concept_name'] = concept_name
-            dfs.append(df)
+            df = ak.stock_zt_pool_em(date=date_str)
+            if '所属行业' not in df.columns or df['所属行业'].isnull().all():
+                continue
+            counts = df['所属行业'].value_counts()
+            for concept, cnt in counts.items():
+                date_concept_count[date.strftime('%Y-%m-%d')][concept] = cnt
         except Exception:
+            failed_dates.append(date_str)
             continue
 
-    if not dfs:
-        return pd.DataFrame()
+    df_heatmap = pd.DataFrame(date_concept_count).T.fillna(0).astype(int)
+    df_heatmap = df_heatmap.loc[:, (df_heatmap.sum(axis=0) > 5)]
+    return df_heatmap, failed_dates
 
-    df_all = pd.concat(dfs)
-    df_all['trade_date'] = pd.to_datetime(df_all['trade_date'])
-    df_all['pct_change'] = df_all.groupby('concept_name')['close'].pct_change().fillna(0)
-    return df_all
+def plot_heatmap(df_heatmap):
+    plt.figure(figsize=(16, 10))
+    sns.heatmap(df_heatmap.T, cmap='YlGnBu', linewidths=.5, linecolor='gray')
+    plt.title('🔥 最近一个月涨停题材强度热力图')
+    plt.ylabel('题材（所属行业）')
+    plt.xlabel('日期')
+    plt.xticks(rotation=45)
+    plt.yticks()
+    plt.tight_layout()
 
-st.markdown("---")
-st.markdown("## 🔥 最近一个月概念题材强度热力图")
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+    return buf
 
-with st.spinner("⏳ 获取概念题材强度数据中..."):
-    heat_df = get_akshare_concept_strength(days=30)
+st.markdown("## 🔥 最近一个月涨停题材强度热力图")
+with st.spinner("加载涨停题材热力图数据..."):
+    heatmap_df, failed_days = get_recent_concept_heatmap_data(days=30)
 
-if heat_df.empty:
-    st.warning("⚠️ 未能获取概念题材强度数据")
+if failed_days:
+    st.warning(f"⚠️ 部分交易日数据获取失败：{', '.join(failed_days)}")
+
+if heatmap_df.empty:
+    st.warning("😥 未获取到有效涨停题材数据")
 else:
-    pivot = heat_df.pivot(
-        index='concept_name',
-        columns=heat_df['trade_date'].dt.strftime('%Y-%m-%d'),
-        values='pct_change'
-    ).fillna(0)
-
-    fig = px.imshow(
-        pivot.values,
-        labels={'x': '日期', 'y': '概念题材', 'color': '日涨幅'},
-        x=pivot.columns, y=pivot.index,
-        color_continuous_scale='RdYlGn',
-        aspect='auto'
-    )
-    fig.update_layout(height=600, margin=dict(l=20, r=20, t=20, b=20))
-    st.plotly_chart(fig, use_container_width=True)
+    img_buf = plot_heatmap(heatmap_df)
+    st.image(img_buf)
