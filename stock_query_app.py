@@ -1,16 +1,14 @@
 import streamlit as st
 import pandas as pd
 import requests
-import json
 
 # 页面配置
 st.set_page_config(
     page_title="A股股票查询工具",
-    layout="centered",
-    initial_sidebar_state="auto"
+    layout="centered"
 )
 
-# 自定义CSS
+# 页面标题
 st.markdown("""
     <style>
         .main-title {
@@ -21,34 +19,11 @@ st.markdown("""
             margin-bottom: 25px;
             padding-top: 10px;
         }
-        .input-row, .button-row {
-            display: flex;
-            gap: 10px;
-            justify-content: space-between;
-        }
-        .input-col, .button-col {
-            flex: 1;
-        }
-        @media (max-width: 600px) {
-            .input-row, .button-row {
-                flex-direction: row;
-                flex-wrap: nowrap;
-            }
-        }
-        .stTextInput > div > div > input {
-            padding: 8px;
-            font-size: 16px;
-        }
-        .stButton > button {
-            font-size: 16px;
-            padding: 10px 0;
-        }
     </style>
 """, unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票查询工具（实时价格）</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">📈 A股股票查询工具</div>', unsafe_allow_html=True)
-
-# 读取 Excel 股票列表
+# 加载本地股票基础信息
 EXCEL_FILE = "A股股票列表.xlsx"
 
 @st.cache_data(show_spinner=False)
@@ -64,37 +39,36 @@ def load_data():
 
 stock_df = load_data()
 
-# 获取网易财经实时行情（批量）
+# 腾讯财经实时接口
 @st.cache_data(show_spinner=False, ttl=60)
-def get_stock_info_from_163(codes: list):
+def get_stock_info_from_tencent(codes: list):
     try:
-        query_codes = []
-        for code in codes:
-            suffix = "0" if code.startswith("6") else "1"
-            query_codes.append(code + suffix)
-
-        query_str = ",".join(query_codes)
-        url = f"https://api.money.126.net/data/feed/{query_str}?callback=callback"
+        query_codes = ["sh" + c if c.startswith("6") else "sz" + c for c in codes]
+        url = "https://qt.gtimg.cn/q=" + ",".join(query_codes)
         res = requests.get(url)
-        res.encoding = "utf-8"
-        json_str = res.text.strip()[9:-1]
-        data = json.loads(json_str)
+        res.encoding = "gbk"
+        lines = res.text.strip().splitlines()
 
-        stock_info = {}
-        for key, val in data.items():
-            stock_info[val['code']] = {
-                "当前价格": val.get("price"),
-                "昨收": val.get("yestclose"),
-                "今开": val.get("open"),
-                "涨跌额": round(val.get("updown", 0), 2),
-                "涨跌幅": f"{val.get('percent', 0.0):.2f}%"
-            }
-        return stock_info
+        info_dict = {}
+        for line in lines:
+            try:
+                code_key = line.split("=")[0].split("_")[-1][2:]
+                data = line.split("~")
+                info_dict[code_key] = {
+                    "当前价格": float(data[3]),
+                    "昨收": float(data[4]),
+                    "今开": float(data[5]),
+                    "涨跌额": round(float(data[3]) - float(data[4]), 2),
+                    "涨跌幅": f"{(float(data[3]) - float(data[4])) / float(data[4]) * 100:.2f}%",
+                }
+            except Exception:
+                continue
+        return info_dict
     except Exception as e:
         st.error(f"❌ 获取实时行情失败：{e}")
         return {}
 
-# 初始化状态
+# 初始化 session_state
 for key in ["input_prefix", "input_suffix", "input_name", "search_done", "filtered_df"]:
     if key not in st.session_state:
         st.session_state[key] = "" if key != "filtered_df" else pd.DataFrame()
@@ -106,19 +80,16 @@ def clear_inputs():
     st.session_state.search_done = False
     st.session_state.filtered_df = pd.DataFrame()
 
-# 输入框
-st.markdown('<div class="input-row">', unsafe_allow_html=True)
+# 输入区域
 col1, col2 = st.columns(2)
 with col1:
-    st.text_input("股票代码前两位(可不填)", max_chars=2, key="input_prefix")
+    st.text_input("股票代码前两位(可选)", max_chars=2, key="input_prefix")
 with col2:
-    st.text_input("股票代码后两位(可不填)", max_chars=2, key="input_suffix")
-st.markdown('</div>', unsafe_allow_html=True)
+    st.text_input("股票代码后两位(可选)", max_chars=2, key="input_suffix")
 
-st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
+st.text_input("股票名称关键词（字符无序、模糊匹配）", key="input_name")
 
-# 按钮
-st.markdown('<div class="button-row">', unsafe_allow_html=True)
+# 查询与清除按钮
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
     if st.button("🚀 开始查询", use_container_width=True):
@@ -141,9 +112,8 @@ with btn_col1:
         st.session_state.search_done = True
 with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
-st.markdown('</div>', unsafe_allow_html=True)
 
-# 查询结果显示
+# 显示结果表格
 if st.session_state.search_done:
     filtered_df = st.session_state.filtered_df
 
@@ -152,14 +122,16 @@ if st.session_state.search_done:
     else:
         with st.spinner("⏳ 正在获取实时行情..."):
             codes = filtered_df["code"].tolist()
-            info_dict = get_stock_info_from_163(codes)
+            info_dict = get_stock_info_from_tencent(codes)
 
+            # 增加实时价格列
             for col in ["当前价格", "昨收", "今开", "涨跌额", "涨跌幅"]:
                 filtered_df[col] = filtered_df["code"].map(lambda x: info_dict.get(x, {}).get(col, None))
 
         st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的股票：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
+        # 下载按钮
         csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
             label="📥 下载结果为 CSV 文件",
@@ -168,6 +140,7 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
+        # 可选股票显示 K 线图
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
