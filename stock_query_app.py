@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import requests
+import akshare as ak
+import plotly.express as px
 
 # 页面配置
 st.set_page_config(
@@ -160,3 +162,46 @@ if st.session_state.search_done:
         if selected_code:
             st.markdown("### 📈 当前选中股票的K线图（来自东方财富网）")
             st.components.v1.iframe(get_k_chart_url(selected_code), height=600, scrolling=True)
+
+# 添加题材强度热力图
+st.markdown("## 🔥 最近一个月概念题材强度热力图（基于AkShare）")
+
+@st.cache_data(ttl=3600)
+def get_akshare_concept_strength(days=30):
+    code_df = ak.stock_concept_ths()
+    dfs = []
+    for _, row in code_df.iterrows():
+        try:
+            df = ak.stock_market_concept_index_ths(symbol=row['code'])
+            df = df[['日期', '收盘']].tail(days)
+            df['concept_name'] = row['concept_name']
+            dfs.append(df)
+        except Exception:
+            continue
+    if not dfs:
+        return pd.DataFrame()
+    df_all = pd.concat(dfs)
+    df_all['日期'] = pd.to_datetime(df_all['日期'])
+    df_all['pct_change'] = df_all.groupby('concept_name')['收盘'].pct_change().fillna(0)
+    return df_all
+
+heat_df = get_akshare_concept_strength(days=30)
+
+if heat_df.empty:
+    st.error("❌ 未能获取AkShare题材数据，请检查网络或接口状态。")
+else:
+    pivot = heat_df.pivot(
+        index='concept_name',
+        columns=heat_df['日期'].dt.strftime('%Y-%m-%d'),
+        values='pct_change'
+    ).fillna(0)
+
+    fig = px.imshow(
+        pivot.values,
+        labels={'x': '日期', 'y': '概念题材', 'color': '日涨幅'},
+        x=pivot.columns, y=pivot.index,
+        color_continuous_scale='RdYlGn',
+        aspect='auto'
+    )
+    fig.update_layout(height=600, margin=dict(l=20, r=20, t=20, b=20))
+    st.plotly_chart(fig, use_container_width=True)
