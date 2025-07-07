@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import requests
 
 # 页面配置
 st.set_page_config(
@@ -13,7 +14,7 @@ st.set_page_config(
     }
 )
 
-# 自定义CSS美化和布局
+# 自定义CSS
 st.markdown("""
     <style>
         .main-title {
@@ -24,29 +25,24 @@ st.markdown("""
             margin-bottom: 25px;
             padding-top: 10px;
         }
-
         .input-row, .button-row {
             display: flex;
             gap: 10px;
             justify-content: space-between;
         }
-
         .input-col, .button-col {
             flex: 1;
         }
-
         @media (max-width: 600px) {
             .input-row, .button-row {
                 flex-direction: row;
                 flex-wrap: nowrap;
             }
         }
-
         .stTextInput > div > div > input {
             padding: 8px;
             font-size: 16px;
         }
-
         .stButton > button {
             font-size: 16px;
             padding: 10px 0;
@@ -56,7 +52,7 @@ st.markdown("""
 
 st.markdown('<div class="main-title">📈 A股股票查询工具</div>', unsafe_allow_html=True)
 
-# 加载数据
+# 常量与数据加载
 EXCEL_FILE = "A股股票列表.xlsx"
 
 @st.cache_data(show_spinner=False)
@@ -72,7 +68,24 @@ def load_data():
 
 stock_df = load_data()
 
-# 初始化 session_state 变量
+# 获取当前价格函数
+def get_current_price(code: str) -> float:
+    """
+    获取A股实时价格，来自新浪财经接口
+    """
+    try:
+        prefix = "sh" if code.startswith("6") else "sz"
+        url = f"http://hq.sinajs.cn/list={prefix}{code}"
+        res = requests.get(url)
+        res.encoding = "gbk"
+        content = res.text
+        if "=" in content and "," in content:
+            price = float(content.split(",")[3])  # 当前价
+            return price
+    except:
+        return None
+
+# 初始化 session_state
 for key in ["input_prefix", "input_suffix", "input_name", "search_done", "filtered_df"]:
     if key not in st.session_state:
         if key == "filtered_df":
@@ -89,7 +102,7 @@ def clear_inputs():
     st.session_state.search_done = False
     st.session_state.filtered_df = pd.DataFrame()
 
-# 横向输入框
+# 输入部分
 st.markdown('<div class="input-row">', unsafe_allow_html=True)
 col1, col2 = st.columns(2)
 with col1:
@@ -98,10 +111,9 @@ with col2:
     st.text_input("股票代码后两位(可不填)", max_chars=2, key="input_suffix")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 名称关键词输入
 st.text_input("股票名称关键词（模糊匹配，字符无序无连续）", key="input_name")
 
-# 横向按钮
+# 按钮区域
 st.markdown('<div class="button-row">', unsafe_allow_html=True)
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
@@ -128,13 +140,16 @@ with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 显示查询结果
+# 显示结果
 if st.session_state.search_done:
     filtered_df = st.session_state.filtered_df
 
     if filtered_df.empty:
         st.warning("😥 没有找到符合条件的股票，请尝试调整关键词。")
     else:
+        with st.spinner("⏳ 正在获取当前价格..."):
+            filtered_df["当前价格"] = filtered_df["code"].apply(get_current_price)
+
         st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的股票：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
@@ -146,7 +161,7 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
-        # 显示名称，选中返回代码
+        # 显示K线图选择
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
