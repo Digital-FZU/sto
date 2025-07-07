@@ -10,7 +10,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# 页面标题
+# 页面标题样式
 st.markdown("""
     <style>
         .main-title {
@@ -115,7 +115,7 @@ with btn_col1:
 with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 
-# 显示结果表格
+# 显示结果表格和K线图
 if st.session_state.search_done:
     filtered_df = st.session_state.filtered_df
 
@@ -142,7 +142,7 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
-        # 可选股票显示 K 线图
+        # 选股票看K线图
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
@@ -163,36 +163,48 @@ if st.session_state.search_done:
             st.markdown("### 📈 当前选中股票的K线图（来自东方财富网）")
             st.components.v1.iframe(get_k_chart_url(selected_code), height=600, scrolling=True)
 
-# 添加题材强度热力图
-st.markdown("## 🔥 最近一个月概念题材强度热力图（基于AkShare）")
+# —— 新增部分：概念题材强度热力图 —— #
 
 @st.cache_data(ttl=3600)
 def get_akshare_concept_strength(days=30):
-    code_df = ak.stock_concept_ths()
+    try:
+        concept_df = ak.stock_board_concept_name_em()
+    except Exception as e:
+        st.error(f'获取概念板块列表失败: {e}')
+        return pd.DataFrame()
+
     dfs = []
-    for _, row in code_df.iterrows():
+    for _, row in concept_df.iterrows():
+        concept_code = row['板块代码']
+        concept_name = row['板块名称']
         try:
-            df = ak.stock_market_concept_index_ths(symbol=row['code'])
-            df = df[['日期', '收盘']].tail(days)
-            df['concept_name'] = row['concept_name']
+            df = ak.stock_board_concept_index_daily_em(symbol=concept_code)
+            df = df[['trade_date', 'close']].tail(days)
+            df['concept_name'] = concept_name
             dfs.append(df)
         except Exception:
             continue
+
     if not dfs:
         return pd.DataFrame()
+
     df_all = pd.concat(dfs)
-    df_all['日期'] = pd.to_datetime(df_all['日期'])
-    df_all['pct_change'] = df_all.groupby('concept_name')['收盘'].pct_change().fillna(0)
+    df_all['trade_date'] = pd.to_datetime(df_all['trade_date'])
+    df_all['pct_change'] = df_all.groupby('concept_name')['close'].pct_change().fillna(0)
     return df_all
 
-heat_df = get_akshare_concept_strength(days=30)
+st.markdown("---")
+st.markdown("## 🔥 最近一个月概念题材强度热力图")
+
+with st.spinner("⏳ 获取概念题材强度数据中..."):
+    heat_df = get_akshare_concept_strength(days=30)
 
 if heat_df.empty:
-    st.error("❌ 未能获取AkShare题材数据，请检查网络或接口状态。")
+    st.warning("⚠️ 未能获取概念题材强度数据")
 else:
     pivot = heat_df.pivot(
         index='concept_name',
-        columns=heat_df['日期'].dt.strftime('%Y-%m-%d'),
+        columns=heat_df['trade_date'].dt.strftime('%Y-%m-%d'),
         values='pct_change'
     ).fillna(0)
 
