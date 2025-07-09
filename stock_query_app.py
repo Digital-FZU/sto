@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# 页面配置
+# 页面配置（宽屏展示）
 st.set_page_config(
-    page_title="A股股票与ETF查询工具",
+    page_title="A股股票&ETF查询工具",
     layout="wide"
 )
 
-# 页面标题
+# 页面标题样式
 st.markdown("""
     <style>
         .main-title {
@@ -21,47 +21,37 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-st.markdown('<div class="main-title">📈 A股股票与ETF查询工具（实时价格）</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票 & ETF 查询工具（实时价格）</div>', unsafe_allow_html=True)
 
-# 加载本地数据
-STOCK_FILE = "A股股票列表.xlsx"
-ETF_FILES = ["上证ETF列表.xlsx", "深圳ETF列表.xlsx"]
+# 加载股票 + ETF 基础信息
+A股_FILE = "A股股票列表.xlsx"
+上证ETF_FILE = "上证ETF列表.xlsx"
+深证ETF_FILE = "深圳ETF列表.xlsx"
 
 @st.cache_data(show_spinner=False)
 def load_all_data():
     try:
-        stock_df = pd.read_excel(STOCK_FILE, dtype={"code": str})
-        stock_df["code"] = stock_df["code"].astype(str)
-        stock_df["name"] = stock_df["name"].astype(str)
+        stock_df = pd.read_excel(A股_FILE, dtype={"code": str})
+        sz_etf_df = pd.read_excel(深证ETF_FILE, dtype={"证券代码": str})
+        sh_etf_df = pd.read_excel(上证ETF_FILE, dtype={"证券代码": str})
 
-        etf_dfs = []
-        for f in ETF_FILES:
-            df = pd.read_excel(f, dtype={"证券代码": str, "证券简称": str})
-            df = df.rename(columns={"证券代码": "code", "证券简称": "name"})
-            df["code"] = df["code"].astype(str)
-            df["name"] = df["name"].astype(str)
-            etf_dfs.append(df)
+        stock_df = stock_df.rename(columns={"code": "code", "name": "name"})[["code", "name"]]
+        sz_etf_df = sz_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]]
+        sh_etf_df = sh_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]]
 
-        etf_df = pd.concat(etf_dfs, ignore_index=True)
-
-        all_df = pd.concat([stock_df, etf_df], ignore_index=True)
-        return all_df, etf_df
+        combined_df = pd.concat([stock_df, sz_etf_df, sh_etf_df], ignore_index=True).drop_duplicates(subset="code")
+        return combined_df
     except Exception as e:
         st.error(f"❌ 数据读取失败：{e}")
-        return pd.DataFrame(columns=["code", "name"]), pd.DataFrame()
+        return pd.DataFrame(columns=["code", "name"])
 
-stock_df, etf_df = load_all_data()
+stock_df = load_all_data()
 
-# 判断是否是ETF
-
-def is_etf(code: str) -> bool:
-    return code in etf_df["code"].tolist()
-
-# 腾讯财经实时接口
+# 腾讯财经接口（实时价格）
 @st.cache_data(show_spinner=False, ttl=60)
 def get_stock_info_from_tencent(codes: list):
     try:
-        query_codes = ["sh" + c if c.startswith(("5", "6", "9")) else "sz" + c for c in codes]
+        query_codes = ["sh" + c if c.startswith("6") else "sz" + c for c in codes]
         url = "https://qt.gtimg.cn/q=" + ",".join(query_codes)
         res = requests.get(url)
         res.encoding = "gbk"
@@ -86,7 +76,7 @@ def get_stock_info_from_tencent(codes: list):
         st.error(f"❌ 获取实时行情失败：{e}")
         return {}
 
-# 初始化 session_state
+# Session state 初始化
 for key in ["input_prefix", "input_suffix", "input_name", "search_done", "filtered_df"]:
     if key not in st.session_state:
         st.session_state[key] = "" if key != "filtered_df" else pd.DataFrame()
@@ -98,16 +88,16 @@ def clear_inputs():
     st.session_state.search_done = False
     st.session_state.filtered_df = pd.DataFrame()
 
-# 输入区域
+# 输入区
 col1, col2 = st.columns(2)
 with col1:
-    st.text_input("股票代码前两位(可选)", max_chars=2, key="input_prefix")
+    st.text_input("股票/ETF 代码前两位(可选)", max_chars=2, key="input_prefix")
 with col2:
-    st.text_input("股票代码后两位(可选)", max_chars=2, key="input_suffix")
+    st.text_input("股票/ETF 代码后两位(可选)", max_chars=2, key="input_suffix")
 
-st.text_input("股票或ETF名称关键词（字符无序、模糊匹配）", key="input_name")
+st.text_input("名称关键词（字符无序、模糊匹配）", key="input_name")
 
-# 查询与清除按钮
+# 查询 & 清除按钮
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
     if st.button("🚀 开始查询", use_container_width=True):
@@ -128,11 +118,10 @@ with btn_col1:
 
         st.session_state.filtered_df = filtered_df
         st.session_state.search_done = True
-
 with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 
-# 显示结果表格
+# 显示查询结果
 if st.session_state.search_done:
     filtered_df = st.session_state.filtered_df
 
@@ -146,17 +135,19 @@ if st.session_state.search_done:
             for col in ["当前价格", "昨收", "今开", "涨跌额", "涨跌幅"]:
                 filtered_df[col] = filtered_df["code"].map(lambda x: info_dict.get(x, {}).get(col, None))
 
-        st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的股票或ETF：")
+        st.success(f"✅ 共找到 {len(filtered_df)} 条符合条件的记录：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
+        # 下载按钮
         csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
             label="📥 下载结果为 CSV 文件",
             data=csv,
-            file_name="股票ETF查询结果.csv",
+            file_name="查询结果.csv",
             mime="text/csv"
         )
 
+        # 可选展示 K 线图
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
@@ -171,11 +162,27 @@ if st.session_state.search_done:
         )
 
         def get_k_chart_url(code: str) -> str:
-            if is_etf(code):
-                return f"https://fund.eastmoney.com/{code}.html"
-            else:
-                return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
+            return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
 
         if selected_code:
-            st.markdown("### 📈 当前选中个股/ETF的K线图（来自东方财富网）")
-            st.components.v1.iframe(get_k_chart_url(selected_code), height=600, width=1200, scrolling=True)
+            st.markdown("### 📈 当前选中股票/ETF 的 K 线图（来自东方财富网）")
+
+            chart_url = get_k_chart_url(selected_code)
+            st.components.v1.iframe(chart_url, height=600, width="100%", scrolling=True)
+
+            st.markdown(f"""
+                <div style='text-align: right; margin-top: 10px;'>
+                    <a href="{chart_url}" target="_blank" style="text-decoration: none;">
+                        <button style="
+                            background-color: #2c7be5;
+                            color: white;
+                            padding: 6px 12px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                        ">
+                            🔗 在新标签页中打开
+                        </button>
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
