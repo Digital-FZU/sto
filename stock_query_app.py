@@ -4,7 +4,7 @@ import requests
 
 # 页面配置
 st.set_page_config(
-    page_title="A股股票查询工具",
+    page_title="A股股票与ETF查询工具",
     layout="wide"
 )
 
@@ -21,45 +21,47 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-st.markdown('<div class="main-title">📈 A股股票查询工具（实时价格）</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票与ETF查询工具（实时价格）</div>', unsafe_allow_html=True)
 
-# 读取股票和ETF数据文件（Excel从GitHub下载）
+# 加载本地数据
 STOCK_FILE = "A股股票列表.xlsx"
-SH_ETF_FILE = "上证ETF列表.xlsx"
-SZ_ETF_FILE = "深圳ETF列表.xlsx"
+ETF_FILES = ["上证ETF列表.xlsx", "深圳ETF列表.xlsx"]
 
 @st.cache_data(show_spinner=False)
-def load_data():
+def load_all_data():
     try:
-        stock_df = pd.read_excel(STOCK_FILE, dtype=str)
-        stock_df = stock_df.rename(columns={"code": "code", "name": "name"})[["code", "name"]]
+        stock_df = pd.read_excel(STOCK_FILE, dtype={"code": str})
+        stock_df["code"] = stock_df["code"].astype(str)
+        stock_df["name"] = stock_df["name"].astype(str)
 
-        sh_etf_df = pd.read_excel(SH_ETF_FILE, dtype=str)
-        sz_etf_df = pd.read_excel(SZ_ETF_FILE, dtype=str)
-        # 合并ETF表，取“证券代码”和“证券简称”
-        etf_df = pd.concat([
-            sh_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]],
-            sz_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]]
-        ], ignore_index=True)
+        etf_dfs = []
+        for f in ETF_FILES:
+            df = pd.read_excel(f, dtype={"证券代码": str, "证券简称": str})
+            df = df.rename(columns={"证券代码": "code", "证券简称": "name"})
+            df["code"] = df["code"].astype(str)
+            df["name"] = df["name"].astype(str)
+            etf_dfs.append(df)
 
-        # 合并股票和ETF数据，不去重，保持全部
-        combined_df = pd.concat([stock_df, etf_df], ignore_index=True)
+        etf_df = pd.concat(etf_dfs, ignore_index=True)
 
-        combined_df["code"] = combined_df["code"].astype(str)
-        combined_df["name"] = combined_df["name"].astype(str)
-
-        return combined_df
+        all_df = pd.concat([stock_df, etf_df], ignore_index=True)
+        return all_df, etf_df
     except Exception as e:
         st.error(f"❌ 数据读取失败：{e}")
-        return pd.DataFrame(columns=["code", "name"])
+        return pd.DataFrame(columns=["code", "name"]), pd.DataFrame()
 
-stock_df = load_data()
+stock_df, etf_df = load_all_data()
+
+# 判断是否是ETF
+
+def is_etf(code: str) -> bool:
+    return code in etf_df["code"].tolist()
 
 # 腾讯财经实时接口
 @st.cache_data(show_spinner=False, ttl=60)
 def get_stock_info_from_tencent(codes: list):
     try:
-        query_codes = ["sh" + c if c.startswith("6") else "sz" + c for c in codes]
+        query_codes = ["sh" + c if c.startswith(("5", "6", "9")) else "sz" + c for c in codes]
         url = "https://qt.gtimg.cn/q=" + ",".join(query_codes)
         res = requests.get(url)
         res.encoding = "gbk"
@@ -103,7 +105,7 @@ with col1:
 with col2:
     st.text_input("股票代码后两位(可选)", max_chars=2, key="input_suffix")
 
-st.text_input("股票名称关键词（字符无序、模糊匹配）", key="input_name")
+st.text_input("股票或ETF名称关键词（字符无序、模糊匹配）", key="input_name")
 
 # 查询与清除按钮
 btn_col1, btn_col2 = st.columns(2)
@@ -126,6 +128,7 @@ with btn_col1:
 
         st.session_state.filtered_df = filtered_df
         st.session_state.search_done = True
+
 with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 
@@ -140,23 +143,20 @@ if st.session_state.search_done:
             codes = filtered_df["code"].tolist()
             info_dict = get_stock_info_from_tencent(codes)
 
-            # 增加实时价格列
             for col in ["当前价格", "昨收", "今开", "涨跌额", "涨跌幅"]:
                 filtered_df[col] = filtered_df["code"].map(lambda x: info_dict.get(x, {}).get(col, None))
 
-        st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的证券（股票和ETF）：")
+        st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的股票或ETF：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
-        # 下载按钮
         csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
             label="📥 下载结果为 CSV 文件",
             data=csv,
-            file_name="查询结果.csv",
+            file_name="股票ETF查询结果.csv",
             mime="text/csv"
         )
 
-        # 可选证券显示 K 线图
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
@@ -165,31 +165,17 @@ if st.session_state.search_done:
             return f"{name_list[idx]}"
 
         selected_code = st.selectbox(
-            "📊 选择要查看K线图的证券",
+            "📊 选择要查看K线图的股票或ETF",
             options=code_list,
             format_func=format_name
         )
 
+        def get_k_chart_url(code: str) -> str:
+            if is_etf(code):
+                return f"https://fund.eastmoney.com/{code}.html"
+            else:
+                return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
+
         if selected_code:
-            market = "sh" if selected_code.startswith("6") else "sz"
-            quote_url = f"https://quote.eastmoney.com/{market}{selected_code}.html"
-
-            st.markdown("### 🧭 东方财富网 K 线图")
-            
-            # 内嵌图表，宽度100%
-            st.markdown(
-                f"""
-                <iframe src="{quote_url}"
-                        width="100%" height="600" style="border:none;"></iframe>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # 新标签页打开链接按钮
-            st.markdown(
-                f'<div style="text-align:center; margin-top:10px;">'
-                f'<a href="{quote_url}" target="_blank" style="text-decoration:none;">'
-                f'<button style="background-color:#2c3e50; color:white; border:none; padding:10px 20px; border-radius:6px; font-size:16px; cursor:pointer;">🔗 在新标签页中打开</button>'
-                f'</a></div>',
-                unsafe_allow_html=True
-            )
+            st.markdown("### 📈 当前选中个股/ETF的K线图（来自东方财富网）")
+            st.components.v1.iframe(get_k_chart_url(selected_code), height=600, width=1200, scrolling=True)
