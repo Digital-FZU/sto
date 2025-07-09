@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import requests
 
-# 页面配置（宽屏展示）
+# 页面配置
 st.set_page_config(
-    page_title="A股股票&ETF查询工具",
+    page_title="A股股票查询工具",
     layout="wide"
 )
 
@@ -21,37 +21,48 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-st.markdown('<div class="main-title">📈 A股股票 & ETF 查询工具（实时价格）</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">📈 A股股票查询工具（实时价格）</div>', unsafe_allow_html=True)
 
-# 加载股票 + ETF 基础信息
-A股_FILE = "A股股票列表.xlsx"
-上证ETF_FILE = "上证ETF列表.xlsx"
-深证ETF_FILE = "深圳ETF列表.xlsx"
+# 数据文件路径
+STOCK_FILE = "A股股票列表.xlsx"
+SH_ETF_FILE = "上证ETF列表.xlsx"
+SZ_ETF_FILE = "深圳ETF列表.xlsx"
 
+# 加载股票 + ETF 数据
 @st.cache_data(show_spinner=False)
-def load_all_data():
+def load_data():
     try:
-        stock_df = pd.read_excel(A股_FILE, dtype={"code": str})
-        sz_etf_df = pd.read_excel(深证ETF_FILE, dtype={"证券代码": str})
-        sh_etf_df = pd.read_excel(上证ETF_FILE, dtype={"证券代码": str})
-
+        stock_df = pd.read_excel(STOCK_FILE, dtype=str)
         stock_df = stock_df.rename(columns={"code": "code", "name": "name"})[["code", "name"]]
-        sz_etf_df = sz_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]]
-        sh_etf_df = sh_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]]
 
-        combined_df = pd.concat([stock_df, sz_etf_df, sh_etf_df], ignore_index=True).drop_duplicates(subset="code")
+        sh_etf_df = pd.read_excel(SH_ETF_FILE, dtype=str)
+        sz_etf_df = pd.read_excel(SZ_ETF_FILE, dtype=str)
+
+        etf_df = pd.concat([
+            sh_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]],
+            sz_etf_df.rename(columns={"证券代码": "code", "证券简称": "name"})[["code", "name"]]
+        ], ignore_index=True)
+
+        combined_df = pd.concat([stock_df, etf_df], ignore_index=True)
+
+        combined_df["code"] = combined_df["code"].astype(str)
+        combined_df["name"] = combined_df["name"].astype(str)
+
         return combined_df
     except Exception as e:
         st.error(f"❌ 数据读取失败：{e}")
         return pd.DataFrame(columns=["code", "name"])
 
-stock_df = load_all_data()
+stock_df = load_data()
 
-# 腾讯财经接口（实时价格）
+# 腾讯财经实时接口
 @st.cache_data(show_spinner=False, ttl=60)
 def get_stock_info_from_tencent(codes: list):
     try:
-        query_codes = ["sh" + c if c.startswith("6") else "sz" + c for c in codes]
+        query_codes = [
+            "sh" + c if c.startswith(("6", "5")) else "sz" + c
+            for c in codes
+        ]
         url = "https://qt.gtimg.cn/q=" + ",".join(query_codes)
         res = requests.get(url)
         res.encoding = "gbk"
@@ -76,7 +87,7 @@ def get_stock_info_from_tencent(codes: list):
         st.error(f"❌ 获取实时行情失败：{e}")
         return {}
 
-# Session state 初始化
+# 初始化 session_state
 for key in ["input_prefix", "input_suffix", "input_name", "search_done", "filtered_df"]:
     if key not in st.session_state:
         st.session_state[key] = "" if key != "filtered_df" else pd.DataFrame()
@@ -88,16 +99,16 @@ def clear_inputs():
     st.session_state.search_done = False
     st.session_state.filtered_df = pd.DataFrame()
 
-# 输入区
+# 输入区域
 col1, col2 = st.columns(2)
 with col1:
-    st.text_input("股票/ETF 代码前两位(可选)", max_chars=2, key="input_prefix")
+    st.text_input("股票代码前两位(可选)", max_chars=2, key="input_prefix")
 with col2:
-    st.text_input("股票/ETF 代码后两位(可选)", max_chars=2, key="input_suffix")
+    st.text_input("股票代码后两位(可选)", max_chars=2, key="input_suffix")
 
-st.text_input("名称关键词（字符无序、模糊匹配）", key="input_name")
+st.text_input("股票名称关键词（字符无序、模糊匹配）", key="input_name")
 
-# 查询 & 清除按钮
+# 查询与清除按钮
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
     if st.button("🚀 开始查询", use_container_width=True):
@@ -121,7 +132,7 @@ with btn_col1:
 with btn_col2:
     st.button("🧹 清除条件", on_click=clear_inputs, use_container_width=True)
 
-# 显示查询结果
+# 显示结果表格
 if st.session_state.search_done:
     filtered_df = st.session_state.filtered_df
 
@@ -135,7 +146,7 @@ if st.session_state.search_done:
             for col in ["当前价格", "昨收", "今开", "涨跌额", "涨跌幅"]:
                 filtered_df[col] = filtered_df["code"].map(lambda x: info_dict.get(x, {}).get(col, None))
 
-        st.success(f"✅ 共找到 {len(filtered_df)} 条符合条件的记录：")
+        st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的证券（股票和ETF）：")
         st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
 
         # 下载按钮
@@ -147,7 +158,7 @@ if st.session_state.search_done:
             mime="text/csv"
         )
 
-        # 可选展示 K 线图
+        # 可选证券显示 K 线图
         code_list = filtered_df["code"].tolist()
         name_list = filtered_df["name"].tolist()
 
@@ -156,33 +167,35 @@ if st.session_state.search_done:
             return f"{name_list[idx]}"
 
         selected_code = st.selectbox(
-            "📊 选择要查看K线图的股票或ETF",
+            "📊 选择要查看K线图的证券",
             options=code_list,
             format_func=format_name
         )
 
-        def get_k_chart_url(code: str) -> str:
-            return f"https://quote.eastmoney.com/{'sh' if code.startswith('6') else 'sz'}{code}.html"
-
         if selected_code:
-            st.markdown("### 📈 当前选中股票/ETF 的 K 线图（来自东方财富网）")
+            # 判断是否是上证ETF（5开头）
+            if selected_code.startswith("5"):
+                quote_url = f"https://fund.eastmoney.com/{selected_code}.html"
+            else:
+                market = "sh" if selected_code.startswith("6") else "sz"
+                quote_url = f"https://quote.eastmoney.com/{market}{selected_code}.html"
 
-            chart_url = get_k_chart_url(selected_code)
-            st.components.v1.iframe(chart_url, height=600, width="100%", scrolling=True)
+            st.markdown("### 🧭 东方财富网 K 线图")
 
-            st.markdown(f"""
-                <div style='text-align: right; margin-top: 10px;'>
-                    <a href="{chart_url}" target="_blank" style="text-decoration: none;">
-                        <button style="
-                            background-color: #2c7be5;
-                            color: white;
-                            padding: 6px 12px;
-                            border: none;
-                            border-radius: 5px;
-                            cursor: pointer;
-                        ">
-                            🔗 在新标签页中打开
-                        </button>
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
+            # 内嵌图表，宽度100%
+            st.markdown(
+                f"""
+                <iframe src="{quote_url}"
+                        width="100%" height="600" style="border:none;"></iframe>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # 新标签页打开链接按钮
+            st.markdown(
+                f'<div style="text-align:center; margin-top:10px;">'
+                f'<a href="{quote_url}" target="_blank" style="text-decoration:none;">'
+                f'<button style="background-color:#2c3e50; color:white; border:none; padding:10px 20px; border-radius:6px; font-size:16px; cursor:pointer;">🔗 在新标签页中打开</button>'
+                f'</a></div>',
+                unsafe_allow_html=True
+            )
