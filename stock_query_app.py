@@ -5,7 +5,7 @@ import requests
 # 页面配置
 st.set_page_config(
     page_title="A股股票查询工具",
-    layout="centered"
+    layout="wide"
 )
 
 # 页面标题
