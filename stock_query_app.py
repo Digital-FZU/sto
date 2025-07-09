@@ -25,8 +25,8 @@ st.markdown('<div class="main-title">📈 A股股票查询工具（实时价格�
 
 # 读取股票和ETF数据文件（Excel从GitHub下载）
 STOCK_FILE = "A股股票列表.xlsx"
-SH_ETF_FILE = "https://github.com/你的用户名/你的仓库名/raw/main/上证ETF列表.xlsx"
-SZ_ETF_FILE = "https://github.com/你的用户名/你的仓库名/raw/main/深圳ETF列表.xlsx"
+SH_ETF_FILE = "上证ETF列表.xlsx"
+SZ_ETF_FILE = "深圳ETF列表.xlsx"
 
 @st.cache_data(show_spinner=False)
 def load_data():
