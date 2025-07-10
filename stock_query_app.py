@@ -89,6 +89,7 @@ def clear_inputs():
     st.session_state.input_prefix = ""
     st.session_state.input_suffix = ""
     st.session_state.input_name = ""
+    st.session_state.query_time_input = ""  
     st.session_state.search_done = False
     st.session_state.filtered_df = pd.DataFrame()
 
@@ -182,7 +183,9 @@ if st.session_state.search_done:
             pass
 
         st.success(f"✅ 共找到 {len(filtered_df)} 支符合条件的证券（股票和ETF）：")
-        st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
+        #st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
+        st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True, height=700)
+
 
         csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
