@@ -217,7 +217,7 @@ if st.session_state.search_done:
             st.markdown("### 🧭 东方财富网 K 线图")
             st.markdown(
                 f"""
-                <iframe src="{quote_url}" width="100%" height="600" style="border:none;"></iframe>
+                <iframe src="{quote_url}" width="100%" height="2000" style="border:none;"></iframe>
                 """,
                 unsafe_allow_html=True
             )
