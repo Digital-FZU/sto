@@ -102,7 +102,9 @@ with col2:
 st.text_input("股票名称关键词（字符无序、模糊匹配）", key="input_name")
 
 # 新增：指定查询时间点输入
-query_time_input = st.text_input("指定查询时间点（格式 HH:MM，选填）", value="")
+st.text_input("指定查询时间点（格式 HH:MM，选填）", key="query_time_input")
+
+
 
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
@@ -110,7 +112,7 @@ with btn_col1:
         prefix = st.session_state.input_prefix
         suffix = st.session_state.input_suffix
         name_keyword = st.session_state.input_name
-        query_time = query_time_input.strip()
+        query_time = st.session_state.query_time_input.strip()
 
         def fuzzy_match(name: str, keyword: str) -> bool:
             return all(char in name for char in keyword)
